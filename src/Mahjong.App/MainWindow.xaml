@@ -1,0 +1,190 @@
+<Window x:Class="Mahjong.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Mahjong.App.Controls"
+        Title="欢乐麻将" Height="800" Width="1000" Background="#06321C"
+        WindowStartupLocation="CenterScreen">
+    <!-- 注意：DataContext 由 MainWindow.xaml.cs 在构造函数中创建并设置；
+         切勿在 XAML 里用 x:Name="DataContext" 给控件命名，否则会生成一个
+         同名字段遮蔽 Window.DataContext 依赖属性，导致所有绑定失效（看不到牌）。 -->
+
+    <!-- 金色边框圆角牌桌 -->
+    <Border Margin="14" CornerRadius="26"
+            Background="{StaticResource TableBackground}"
+            BorderBrush="{StaticResource TableFrameBrush}" BorderThickness="7">
+
+        <Grid>
+            <!-- 整体 3x3 布局：中 = 牌河+信息，下 = 己方手牌，上/左/右 = 对手 -->
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ======== 第一层：牌河区（带座位标签） ======== -->
+            <!-- 北 (上) -->
+            <Grid Grid.Row="0" Grid.Column="0">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="北" Style="{StaticResource SeatLabel}" />
+                    <ItemsControl ItemsSource="{Binding Players[1].Discard}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+
+            <!-- 中央信息区 -->
+            <Grid Grid.Row="0" Grid.Column="1">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="欢乐麻将" FontSize="38" FontWeight="Bold" FontFamily="Microsoft YaHei"
+                               Foreground="{StaticResource TitleGoldBrush}" HorizontalAlignment="Center">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="6" ShadowDepth="2" Opacity="0.5" />
+                        </TextBlock.Effect>
+                    </TextBlock>
+                    <TextBlock Text="{Binding WallRemaining}" FontSize="22" Foreground="#FFFFF4D6"
+                               FontFamily="Microsoft YaHei" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding CurrentPlayer}" FontSize="24" Foreground="#FFFFE27A"
+                               FontFamily="Microsoft YaHei" FontWeight="Bold" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+
+            <!-- 东 (右) -->
+            <Grid Grid.Row="0" Grid.Column="2">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="东" Style="{StaticResource SeatLabel}" />
+                    <ItemsControl ItemsSource="{Binding Players[2].Discard}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+
+            <!-- 西 (左) -->
+            <Grid Grid.Row="2" Grid.Column="0">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="西" Style="{StaticResource SeatLabel}" />
+                    <ItemsControl ItemsSource="{Binding Players[3].Discard}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+
+            <!-- 南 (下，己方） -->
+            <Grid Grid.Row="2" Grid.Column="1">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="南 · 你" Style="{StaticResource SeatLabel}" />
+                    <ItemsControl ItemsSource="{Binding Players[0].Discard}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:TileControl Kind="{Binding Kind}" Width="60" Height="82" Margin="2" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+
+            <!-- 东（右下） -->
+            <Grid Grid.Row="2" Grid.Column="2">
+                <ItemsControl ItemsSource="{Binding Players[2].Discard}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </Grid>
+
+            <!-- ======== 第二层：己方手牌 ======== -->
+            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Background="Transparent">
+                <ItemsControl ItemsSource="{Binding Players[0].Hand}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:TileControl Kind="{Binding Kind}" Width="100" Height="138" Margin="2" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <EventSetter Event="MouseLeftButtonDown" Handler="HandTile_Click" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- ======== 第三层：回合提示 ======== -->
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="轮到你了" FontSize="34" FontWeight="Bold"
+                       Foreground="{StaticResource TurnHintColor}" FontFamily="Microsoft YaHei"
+                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock.Effect>
+                    <DropShadowEffect Color="#000000" BlurRadius="4" ShadowDepth="1" Opacity="0.45" />
+                </TextBlock.Effect>
+            </TextBlock>
+
+            <!-- ======== 第四层：字幕 ======== -->
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SubtitleText}" FontSize="28" Foreground="#FFFFFFFF"
+                       Background="#99000000" FontFamily="Microsoft YaHei"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+            <!-- ======== 第五层：碰/杠/胡/过按钮 ======== -->
+            <StackPanel Grid.Row="5" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal" Margin="0,6,0,10">
+                <Button Name="PongButton" Content="碰" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                        Background="{StaticResource BtnPongBrush}" Click="PongButton_Click" />
+                <Button Name="KongButton" Content="杠" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                        Background="{StaticResource BtnKongBrush}" Click="KongButton_Click" Margin="10,0,0,0" />
+                <Button Name="WinButton" Content="胡啦" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                        Background="{StaticResource BtnWinBrush}" Click="WinButton_Click" Margin="10,0,0,0" />
+                <Button Name="PassButton" Content="过" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                        Background="{StaticResource BtnPassBrush}" Click="PassButton_Click" Margin="10,0,0,0" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

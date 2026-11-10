@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+*.user
+*.userosscache
+*.suo
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.DotSettings.user
+TestResults/
+
+# Log files
+*.log
+events.txt
+
+# Screenshot / capture temp files
+*.png
+*.jpg
+
+# Capture script
+capture.ps1
+
+# Sapiens / WorkBuddy tooling
+.workbuddy/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

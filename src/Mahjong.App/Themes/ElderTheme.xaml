@@ -1,0 +1,172 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:controls="clr-namespace:Mahjong.App.Controls">
+
+    <!-- ============================================================
+         腾讯欢乐麻将主题（Happy Mahjong Theme）
+         保留原 ElderTheme 的全部资源 Key 名称，仅替换数值；
+         TileControl / MainWindow 通过 StaticResource 引用这些 Key。
+         ============================================================ -->
+
+    <!-- 基础字号 -->
+    <sys:Double x:Key="ElderBaseFontSize">20</sys:Double>
+
+    <!-- 牌尺寸 -->
+    <sys:Double x:Key="TileWidth_Self">100</sys:Double>
+    <sys:Double x:Key="TileHeight_Self">138</sys:Double>
+    <sys:Double x:Key="TileWidth_Other">52</sys:Double>
+    <sys:Double x:Key="TileHeight_Other">72</sys:Double>
+    <sys:Double x:Key="TileWidth_River">60</sys:Double>
+    <sys:Double x:Key="TileHeight_River">82</sys:Double>
+
+    <!-- 花色辅助色（真实麻将配色） -->
+    <Color x:Key="SuitColor_Man">#FFC62828</Color>   <!-- 万 = 喜庆红 -->
+    <Color x:Key="SuitColor_Pin">#FF1E8A3C</Color>   <!-- 条 = 翠绿 -->
+    <Color x:Key="SuitColor_Tong">#FF1F5FCB</Color>  <!-- 筒 = 宝蓝 -->
+    <Color x:Key="SuitColor_Honor">#FF222222</Color> <!-- 字牌 = 近黑 -->
+
+    <!-- 牌身（立体白牌） -->
+    <Color x:Key="TileBackColor">#FFFCFCF7</Color>     <!-- 牌面象牙白 -->
+    <Color x:Key="TileTopColor">#FFFFFFFF</Color>       <!-- 顶部高光纯白 -->
+    <Color x:Key="TileBottomColor">#FFE8E8DF</Color>    <!-- 底部暗面 -->
+    <Color x:Key="TileBorderColor">#FFD2D2C8</Color>    <!-- 牌边浅灰 -->
+    <Color x:Key="TileShadowColor">#3D000000</Color>    <!-- 牌投影 -->
+
+    <!-- 高亮 / 状态 -->
+    <Color x:Key="TileHighlightColor">#FFFFD54A</Color>      <!-- 金色高亮 -->
+    <Color x:Key="TilePressedColor">#FFFF8C1A</Color>        <!-- 橙按下 -->
+    <Color x:Key="TileSelectedBorderColor">#FFE8A100</Color> <!-- 选中描边 -->
+    <Color x:Key="TileHoverBorderColor">#FFFFB300</Color>    <!-- 悬浮描边 -->
+    <Color x:Key="TileWinFlashColor">#FFFF3B30</Color>       <!-- 胡牌闪红 -->
+    <Color x:Key="TileDiscardHighlightColor">#FFFF6B6B</Color><!-- 刚打出红边 -->
+
+    <!-- ============ 牌桌（绿色绒布） ============ -->
+    <RadialGradientBrush x:Key="TableBackground" GradientOrigin="0.5,0.4" Center="0.5,0.4" RadiusX="0.82" RadiusY="0.82">
+        <GradientStop Color="#33B567" Offset="0" />
+        <GradientStop Color="#0E5C32" Offset="0.62" />
+        <GradientStop Color="#073A20" Offset="1" />
+    </RadialGradientBrush>
+
+    <!-- 牌桌金色边框 -->
+    <LinearGradientBrush x:Key="TableFrameBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FFE9A33B" Offset="0" />
+        <GradientStop Color="#FFF6D365" Offset="0.5" />
+        <GradientStop Color="#FFB7791B" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- ============ 操作按钮渐变（红/绿/蓝/灰） ============ -->
+    <LinearGradientBrush x:Key="BtnWinBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFFF7B7B" Offset="0" />
+        <GradientStop Color="#FFD32F2F" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="BtnPongBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FF6FD994" Offset="0" />
+        <GradientStop Color="#FF1E9E54" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="BtnKongBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FF79BDF4" Offset="0" />
+        <GradientStop Color="#FF1F6FC8" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="BtnPassBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFBEC4CE" Offset="0" />
+        <GradientStop Color="#FF7C828C" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- 标题金色渐变 -->
+    <LinearGradientBrush x:Key="TitleGoldBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFFFF1B8" Offset="0" />
+        <GradientStop Color="#FFF6C545" Offset="0.5" />
+        <GradientStop Color="#FFE08A1E" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- 大按钮尺寸 -->
+    <sys:Double x:Key="ActionButtonHeight">92</sys:Double>
+    <sys:Double x:Key="ActionButtonFontSize">32</sys:Double>
+    <Color x:Key="ActionButtonWinBorder">#FFFF6B6B</Color>
+    <Color x:Key="ActionButtonPongBorder">#FF5FD38A</Color>
+    <Color x:Key="ActionButtonKongBorder">#FF6FB7F2</Color>
+    <Color x:Key="ActionButtonPassBorder">#FFB6BCC6</Color>
+
+    <!-- 结果浮层 -->
+    <Color x:Key="OverlayBackground">#CC06281A</Color>
+    <sys:Double x:Key="ResultTitleFontSize">48</sys:Double>
+    <sys:Double x:Key="ResultDetailFontSize">28</sys:Double>
+    <sys:Double x:Key="ResultButtonHeight">120</sys:Double>
+    <sys:Double x:Key="ResultButtonFontSize">36</sys:Double>
+
+    <!-- 回合提示 -->
+    <sys:Double x:Key="TurnHintFontSize">34</sys:Double>
+    <Color x:Key="TurnHintColor">#FFFFE27A</Color>
+
+    <!-- 字幕 -->
+    <sys:Double x:Key="SubtitleFontSize">28</sys:Double>
+    <Color x:Key="SubtitleColor">#FFFFFFFF</Color>
+    <Color x:Key="SubtitleBackground">#99000000</Color>
+
+    <sys:Double x:Key="SettingsFontSize">24</sys:Double>
+
+    <!-- ============ 样式 ============ -->
+    <!-- 注：TileControl 的默认模板保留在 Themes/Generic.xaml（default theme），避免重复隐式样式。 -->
+
+    <!-- 通用文本（白字雅黑） -->
+    <Style x:Key="ElderTextBlock" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Microsoft YaHei" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="{StaticResource ElderBaseFontSize}" />
+        <Setter Property="Foreground" Value="#FFFFFFFF" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    </Style>
+
+    <!-- 座位标签（半透明白底圆角） -->
+    <Style x:Key="SeatLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Microsoft YaHei" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Foreground" Value="#FFFFFFFF" />
+        <Setter Property="Background" Value="#3DFFFFFF" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+        <Setter Property="Padding" Value="9,2" />
+    </Style>
+
+    <!-- 欢乐动作按钮：圆角 + 渐变 + 投影 + 悬停反馈 -->
+    <Style x:Key="HappyActionButton" TargetType="Button">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="{StaticResource ActionButtonFontSize}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="20"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="#FFFFFFFF" BorderThickness="2">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="10" ShadowDepth="4" Opacity="0.45" />
+                        </Border.Effect>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="White" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderThickness" Value="3" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.96" ScaleY="0.96" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

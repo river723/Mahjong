@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{B277B27A-EFFE-45E3-9F6D-C5C1DE31B631}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mahjong.Core", "src\Mahjong.Core\Mahjong.Core.csproj", "{C066AC79-1D40-4955-99DE-37CF58241810}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mahjong.App", "src\Mahjong.App\Mahjong.App.csproj", "{144B8832-5CD7-4BF3-B22B-D38C963BFA87}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mahjong.Tests", "src\Mahjong.Tests\Mahjong.Tests.csproj", "{4F2488DC-CC4C-42C0-81FD-AA9CFC7A6B9C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C066AC79-1D40-4955-99DE-37CF58241810}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C066AC79-1D40-4955-99DE-37CF58241810}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C066AC79-1D40-4955-99DE-37CF58241810}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C066AC79-1D40-4955-99DE-37CF58241810}.Release|Any CPU.Build.0 = Release|Any CPU
+		{144B8832-5CD7-4BF3-B22B-D38C963BFA87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{144B8832-5CD7-4BF3-B22B-D38C963BFA87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{144B8832-5CD7-4BF3-B22B-D38C963BFA87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{144B8832-5CD7-4BF3-B22B-D38C963BFA87}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F2488DC-CC4C-42C0-81FD-AA9CFC7A6B9C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F2488DC-CC4C-42C0-81FD-AA9CFC7A6B9C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F2488DC-CC4C-42C0-81FD-AA9CFC7A6B9C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F2488DC-CC4C-42C0-81FD-AA9CFC7A6B9C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C066AC79-1D40-4955-99DE-37CF58241810} = {B277B27A-EFFE-45E3-9F6D-C5C1DE31B631}
+		{144B8832-5CD7-4BF3-B22B-D38C963BFA87} = {B277B27A-EFFE-45E3-9F6D-C5C1DE31B631}
+		{4F2488DC-CC4C-42C0-81FD-AA9CFC7A6B9C} = {B277B27A-EFFE-45E3-9F6D-C5C1DE31B631}
+	EndGlobalSection
+EndGlobal
