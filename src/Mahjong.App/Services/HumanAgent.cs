@@ -13,11 +13,15 @@ namespace Mahjong.App.Services
     {
         private readonly int _playerIndex;
         private readonly GameHost _host;
-        private readonly TaskCompletionSource<Tile> _discardTcs = new TaskCompletionSource<Tile>();
-        private readonly TaskCompletionSource<ClaimOption> _claimTcs = new TaskCompletionSource<ClaimOption>();
         // 可重复的出牌请求通道：每一回合由引擎发起，UI 回调用 CompleteDiscard 响应
         private TaskCompletionSource<Tile> _pendingDiscard;
         private readonly object _discardLock = new object();
+        // 可重复的声明请求通道：每次引擎征询都新建等待点，避免已完成的 TCS 被复用导致异常/串局
+        private TaskCompletionSource<ClaimOption> _pendingClaim;
+        private readonly object _claimLock = new object();
+        // 自摸/杠上开花的决策通道（与「他打牌后声明」分开，避免两个等待点串台）
+        private TaskCompletionSource<ClaimOption> _pendingConcealed;
+        private readonly object _concealedLock = new object();
 
         public HumanAgent(int playerIndex, GameHost host)
         {
@@ -25,24 +29,62 @@ namespace Mahjong.App.Services
             _host = host;
         }
 
+        /// <summary>当前是否正在等待人类出牌（供 UI 判断点击是否有效，避免"点了没反应"的困惑）。</summary>
+        public bool HasPendingDiscard
+        {
+            get { lock (_discardLock) { return _pendingDiscard != null; } }
+        }
+
         public Task<Tile> ChooseDiscard(DecisionContext context)
         {
-            // 每次引擎征询都创建一个全新的等待点，避免上一回合已完成的 TCS 被复用导致死锁
+            // 每次引擎征询都创建一个全新的等待点，避免上一回合已完成的 TCS 被复用导致死锁。
+            // 用局部变量持有并返回，避免在 lock 外读取字段时的竞态（读到 null 或已完成的 TCS）。
+            var tcs = new TaskCompletionSource<Tile>();
             lock (_discardLock)
             {
-                _pendingDiscard = new TaskCompletionSource<Tile>();
+                _pendingDiscard = tcs;
             }
-            return _pendingDiscard.Task;
+            return tcs.Task;
         }
 
         public Task<ClaimOption> ChooseClaim(DecisionContext context)
         {
-            return _claimTcs.Task;
+            // 每次引擎征询都创建一个全新的等待点（与出牌通道同构）
+            var tcs = new TaskCompletionSource<ClaimOption>();
+            lock (_claimLock)
+            {
+                _pendingClaim = tcs;
+            }
+            return tcs.Task;
+        }
+
+        /// <summary>当前是否正在等待人类决定是否自摸胡。</summary>
+        public bool HasPendingConcealedAction
+        {
+            get { lock (_concealedLock) { return _pendingConcealed != null; } }
         }
 
         public Task<ClaimOption> ChooseConcealedAction(DecisionContext context)
         {
-            return Task.FromResult<ClaimOption>(null);
+            // 自摸成胡时必须真正等待人类点「胡」或「过」，不能一律返回 null（等于强制放弃胡）。
+            var tcs = new TaskCompletionSource<ClaimOption>();
+            lock (_concealedLock)
+            {
+                _pendingConcealed = tcs;
+            }
+            return tcs.Task;
+        }
+
+        /// <summary>UI 回调用：人类选择「胡」或「过」。</summary>
+        public void CompleteConcealedAction(ClaimOption option)
+        {
+            TaskCompletionSource<ClaimOption> tcs;
+            lock (_concealedLock)
+            {
+                tcs = _pendingConcealed;
+                _pendingConcealed = null;
+            }
+            if (tcs != null) tcs.TrySetResult(option);
         }
 
         /// <summary>UI 回调用：人类选定某张手牌打出（由 GameHost.HumanChooseDiscard 触发）。</summary>
@@ -54,18 +96,26 @@ namespace Mahjong.App.Services
                 tcs = _pendingDiscard;
                 _pendingDiscard = null;
             }
+            // 没有挂起的出牌请求（例如误操作）：直接忽略，不污染下一次征询
             if (tcs != null)
             {
                 tcs.TrySetResult(tile);
-                return;
             }
-            // 没有挂起的出牌请求（例如误操作）：降级到一次性 TCS
-            try { _discardTcs.TrySetResult(tile); } catch { /* 已填充则忽略 */ }
         }
 
         public void CompleteClaim(ClaimOption option)
         {
-            _claimTcs.SetResult(option);
+            TaskCompletionSource<ClaimOption> tcs;
+            lock (_claimLock)
+            {
+                tcs = _pendingClaim;
+                _pendingClaim = null;
+            }
+            // 没有挂起的声明征询：直接忽略误点
+            if (tcs != null)
+            {
+                tcs.TrySetResult(option);
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Mahjong.Core.Rules
 {
@@ -14,14 +15,10 @@ namespace Mahjong.Core.Rules
     /// </summary>
     public static class WinChecker
     {
-        /// <summary>判断 14 张（或完整型 3n+2）能否胡。</summary>
+        /// <summary>兼容入口：按默认规则做完整判定（旧版此处是 return true 的占位实现）。</summary>
         public static bool CanWin(int[] counts)
         {
-            ValidateCounts(counts, "CanWin");
-            int total = TotalOf(counts);
-            if (total < 2) return false;
-            // 推倒胡惯例七对默认关；开着时先试七对
-            return true; // 占位，真实实现在下方 SplitAll 调用处
+            return CanWinFull(counts, new RuleConfig());
         }
 
         /// <summary>真实入口：完整判定。</summary>
@@ -31,18 +28,8 @@ namespace Mahjong.Core.Rules
             int total = TotalOf(counts);
             if (total % 3 != 2) return false;
 
-            // 七对（若开启）：所有非零计数均为 2 且恰好 7 对
-            if (rules != null && rules.AllowSevenPairs && total == 14)
-            {
-                int pairs = 0;
-                bool allPairs = true;
-                for (int k = 0; k < 34; k++)
-                {
-                    if ((counts[k] & 1) != 0) { allPairs = false; break; }
-                    pairs += counts[k] / 2;
-                }
-                if (allPairs && pairs == 7) return true;
-            }
+            // 七对（若开启）：所有非零计数均为偶数且恰好 7 对
+            if (rules != null && rules.AllowSevenPairs && IsSevenPairs(counts)) return true;
 
             // 标准型：枚举雀头
             for (int k = 0; k < 34; k++)
@@ -92,6 +79,96 @@ namespace Mahjong.Core.Rules
                 bool ok = SplitAll(counts, pos);
                 counts[pos]++; counts[pos + 1]++; counts[pos + 2]++;
                 if (ok) return true;
+            }
+            return false;
+        }
+
+        /// <summary>是否为七对型（14 张、每种计数均为偶数、恰好 7 对）。</summary>
+        public static bool IsSevenPairs(int[] counts)
+        {
+            ValidateCounts(counts, "IsSevenPairs");
+            if (TotalOf(counts) != 14) return false;
+            int pairs = 0;
+            for (int k = 0; k < 34; k++)
+            {
+                if ((counts[k] & 1) != 0) return false;
+                pairs += counts[k] / 2;
+            }
+            return pairs == 7;
+        }
+
+        /// <summary>
+        /// 是否含「一条龙」：同一数牌花色里同时拆出 123、456、789 三个顺子，
+        /// 其余面子与雀头不限花色。项目禁吃，顺子只可能来自暗牌，故只看暗牌计数即可。
+        /// 必须枚举所有拆分方案（同一手牌可能有多种拆法），任一拆法成立即算。
+        /// </summary>
+        public static bool HasPureStraight(int[] counts)
+        {
+            ValidateCounts(counts, "HasPureStraight");
+            if (TotalOf(counts) % 3 != 2) return false;
+
+            bool found = false;
+            for (int pair = 0; pair < 34 && !found; pair++)
+            {
+                if (counts[pair] < 2) continue;
+                counts[pair] -= 2;
+                var chows = new List<int>();
+                SplitCollect(counts, 0, chows, ref found);
+                counts[pair] += 2;
+            }
+            return found;
+        }
+
+        /// <summary>回溯枚举所有面子拆分，把顺子起点记入 chows；命中一条龙时提前结束。</summary>
+        private static void SplitCollect(int[] counts, int pos, List<int> chows, ref bool found)
+        {
+            if (found) return;
+            while (pos < 34 && counts[pos] == 0) pos++;
+            if (pos == 34)
+            {
+                if (ContainsDragon(chows)) found = true;
+                return;
+            }
+
+            if (pos >= 27)
+            {
+                // 字牌只能刻子
+                if (counts[pos] < 3) return;
+                counts[pos] -= 3;
+                SplitCollect(counts, pos, chows, ref found);
+                counts[pos] += 3;
+                return;
+            }
+
+            // 先试刻子
+            if (counts[pos] >= 3)
+            {
+                counts[pos] -= 3;
+                SplitCollect(counts, pos, chows, ref found);
+                counts[pos] += 3;
+                if (found) return;
+            }
+
+            // 再试顺子，起点入列
+            int rank = pos % 9;
+            if (rank <= 6 && counts[pos + 1] > 0 && counts[pos + 2] > 0)
+            {
+                counts[pos]--; counts[pos + 1]--; counts[pos + 2]--;
+                chows.Add(pos);
+                SplitCollect(counts, pos, chows, ref found);
+                chows.RemoveAt(chows.Count - 1);
+                counts[pos]++; counts[pos + 1]++; counts[pos + 2]++;
+            }
+        }
+
+        /// <summary>顺子起点集合里是否同时存在某花色的 1/4/7 万（或条、筒）起步。</summary>
+        private static bool ContainsDragon(List<int> chows)
+        {
+            int[] bases = { 0, 9, 18 };
+            foreach (int b in bases)
+            {
+                if (chows.Contains(b) && chows.Contains(b + 3) && chows.Contains(b + 6))
+                    return true;
             }
             return false;
         }

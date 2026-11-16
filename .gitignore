@@ -9,7 +9,23 @@ obj/
 .vs/
 .idea/
 *.DotSettings.user
+.vscode/
 TestResults/
+
+# Build output (publish artifacts)
+dist/
+
+# Temp error logs
+engine_err.txt
+
+# Asset generation workspace (sources kept: *.py, reference images are ignored by *.png/*.jpg)
+tools/_backup_tiles/
+tools/_mixed/
+tools/_sheet/
+tools/_shots/
+tools/_ys/
+tools/*.png
+tools/*.jpg
 
 # Log files
 *.log

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using Mahjong.Core.Rules;
 using Mahjong.Core.Tiles;
 
 namespace Mahjong.Core.Game
@@ -15,8 +17,11 @@ namespace Mahjong.Core.Game
         /// <summary>某玩家出牌进牌河。</summary>
         TileDiscarded,
 
-        /// <summary>有人可声明（碰/杠/胡），向各 Agent 征询。</summary>
+        /// <summary>有人可声明（碰/杠/胡，含补杠亮牌后的抢杠胡），向各 Agent 征询。</summary>
         ClaimOffered,
+
+        /// <summary>自己摸牌后成胡（自摸/杠上开花/天胡），向该 Agent 征询是否胡。</summary>
+        ConcealedActionOffered,
 
         /// <summary>声明结算（碰/杠/胡成立或全部放弃）。</summary>
         ClaimResolved,
@@ -39,11 +44,14 @@ namespace Mahjong.Core.Game
         /// <summary>杠（明杠）。</summary>
         Kong,
 
-        /// <summary>胡（点炮或抢杠，v1 无抢杠）。</summary>
+        /// <summary>胡（点炮、抢杠胡；杠上开花走自摸）。</summary>
         Win,
 
-        /// <summary>暗杠（自己回合内发起，非声明）。</summary>
-        ConcealedKong
+        /// <summary>暗杠（自己回合内发起，手里四张同款；每杠 +2/家；不可被抢）。</summary>
+        ConcealedKong,
+
+        /// <summary>补杠 / 加杠（把已有的一组碰升级成杠；每杠 +1/家；亮牌时可被抢杠胡）。</summary>
+        AddedKong
     }
 
     /// <summary>游戏事件（不可变数据载体）。</summary>
@@ -60,11 +68,19 @@ namespace Mahjong.Core.Game
         /// <summary>附加文本（结果描述等）。</summary>
         public string Message { get; private set; }
 
+        /// <summary>声明征询时，被征询玩家可做的碰/杠/胡选项（仅 ClaimOffered 事件携带，其余为 null）。</summary>
+        public IList<ClaimOption> ClaimOptions { get; private set; }
+
         private GameEvent() { }
 
         public static GameEvent Of(GameEventType type, int playerIndex, Tile tile, string message)
         {
             return new GameEvent { Type = type, PlayerIndex = playerIndex, Tile = tile, Message = message };
+        }
+
+        public static GameEvent Of(GameEventType type, int playerIndex, Tile tile, string message, IList<ClaimOption> claimOptions)
+        {
+            return new GameEvent { Type = type, PlayerIndex = playerIndex, Tile = tile, Message = message, ClaimOptions = claimOptions };
         }
     }
 
@@ -80,11 +96,55 @@ namespace Mahjong.Core.Game
         /// <summary>是否自摸。</summary>
         public bool IsSelfDraw { get; set; }
 
+        /// <summary>是否抢杠胡（胡的是别人补杠时亮出的那张牌；该杠不成立）。</summary>
+        public bool IsRobbedKong { get; set; }
+
         /// <summary>胡的那张牌。</summary>
         public Tile WinningTile { get; set; }
 
-        /// <summary>各家本局得分（有正有负，总和必为 0）。</summary>
+        /// <summary>各家本局得分（有正有负，总和必为 0；金币场即金币变动量）。</summary>
         public int[] Scores { get; set; }
+
+        /// <summary>本局每家应付的金币数（三家各付 UnitPay，胡家收 3 × UnitPay）。</summary>
+        public int UnitPay { get; set; }
+
+        /// <summary>胡牌牌型档次（流局时为 Normal）。</summary>
+        public WinPatternKind PatternKind { get; set; }
+
+        /// <summary>胡牌牌型中文名，供结算面板展示。</summary>
+        public string PatternName
+        {
+            get
+            {
+                switch (PatternKind)
+                {
+                    case WinPatternKind.PureStraight: return "一条龙";
+                    case WinPatternKind.SevenPairs: return "七对";
+                    default: return "普通胡";
+                }
+            }
+        }
+
+        /// <summary>胡牌者已成立的明杠数（未胡牌者的杠不计）。</summary>
+        public int OpenKongCount { get; set; }
+
+        /// <summary>胡牌者已成立的暗杠数（未胡牌者的杠不计）。</summary>
+        public int ConcealedKongCount { get; set; }
+
+        /// <summary>胡牌者已成立的杠总数（明 + 暗）。</summary>
+        public int KongCount { get { return OpenKongCount + ConcealedKongCount; } }
+
+        /// <summary>杠的中文明细，例如「 + 1 明杠 + 2 暗杠」；无杠时为空串。</summary>
+        public string KongDescription
+        {
+            get
+            {
+                var parts = new List<string>();
+                if (OpenKongCount > 0) parts.Add(OpenKongCount + " 明杠");
+                if (ConcealedKongCount > 0) parts.Add(ConcealedKongCount + " 暗杠");
+                return parts.Count == 0 ? "" : " + " + string.Join(" + ", parts.ToArray());
+            }
+        }
 
         /// <summary>是否流局。</summary>
         public bool IsDraw

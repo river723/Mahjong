@@ -14,4 +14,26 @@
     <PackageReference Include="System.Speech" Version="6.0.0" />
   </ItemGroup>
 
+  <!-- 离线预渲染的牌面贴图（由 tools/gen_tiles.py 生成，34 正面 + 1 牌背） -->
+  <ItemGroup>
+    <Resource Include="Assets\Tiles\*.png" />
+  </ItemGroup>
+
+  <!-- 金币图标（由 tools/gen_coins.py 生成，金色 + 破产灰）：桌面余额用图片粗略表示 -->
+  <ItemGroup>
+    <Resource Include="Assets\Coins\*.png" />
+  </ItemGroup>
+
+  <!-- 配音语音包 + 音效：离线预生成 wav，随程序一起复制到输出目录。
+       语音包由 genvoice 命令行开关（本机 SAPI）或 tools/gen_voice_edge.py（Edge 神经语音）生成；
+       音效由 tools/gen_sfx.py 合成。运行时缺失时自动降级为静默 / 实时 TTS。 -->
+  <ItemGroup>
+    <Content Include="Assets\Voice\*.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Sounds\*.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

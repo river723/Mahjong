@@ -1,190 +1,626 @@
-<Window x:Class="Mahjong.App.MainWindow"
+﻿<Window x:Class="Mahjong.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Mahjong.App.Controls"
         Title="欢乐麻将" Height="800" Width="1000" Background="#06321C"
-        WindowStartupLocation="CenterScreen">
+        MinWidth="880" MinHeight="660" WindowStartupLocation="CenterScreen">
     <!-- 注意：DataContext 由 MainWindow.xaml.cs 在构造函数中创建并设置；
-         切勿在 XAML 里用 x:Name="DataContext" 给控件命名，否则会生成一个
-         同名字段遮蔽 Window.DataContext 依赖属性，导致所有绑定失效（看不到牌）。 -->
+         切勿在 XAML 里用 x:Name="DataContext" 给控件命名，否则会遮蔽 Window.DataContext 依赖属性。 -->
 
-    <!-- 金色边框圆角牌桌 -->
-    <Border Margin="14" CornerRadius="26"
-            Background="{StaticResource TableBackground}"
-            BorderBrush="{StaticResource TableFrameBrush}" BorderThickness="7">
+    <Grid x:Name="RootGrid" Background="#06321C">
 
-        <Grid>
-            <!-- 整体 3x3 布局：中 = 牌河+信息，下 = 己方手牌，上/左/右 = 对手 -->
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <Grid.Resources>
+        <!-- 副露并入手牌：己方（南）用。牌与手牌同尺寸（66×90）、正面朝上，
+             接在手牌右端；左侧留 16px 空隙，把「归组牌」和「暗牌」分开。
+             空隙放在组模板上而不是 ItemsControl 上：没有副露时宽度就是 0，不会留下空洞。 -->
+        <DataTemplate x:Key="MeldInlineSouth">
+            <ItemsControl ItemsSource="{Binding Tiles}" Margin="16,0,4,0" IsHitTestVisible="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:TileControl Kind="{Binding Kind}" IsFaceUp="{Binding IsFaceUp}" Width="66" Height="90" Margin="2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+        <!-- 副露并入手牌：对家（北）用。牌与手牌同尺寸（30×40）、正面朝上，
+             接在牌背右端，之间留 6px 空隙把「归组牌」和「暗牌」分开。 -->
+        <DataTemplate x:Key="MeldInlineNorth">
+            <ItemsControl ItemsSource="{Binding Tiles}" Margin="4,0,6,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:TileControl Kind="{Binding Kind}" IsFaceUp="{Binding IsFaceUp}" Width="30" Height="40" Margin="-4,0,0,0" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+        <!-- 副露并入手牌：侧家（西/东）用。横躺 32×24、正面朝上（牌面随席位转 90°），
+             接在牌背列下方，步进与手牌一致（20），组间留 4px。 -->
+        <DataTemplate x:Key="MeldInlineWest">
+            <ItemsControl ItemsSource="{Binding Tiles}" Margin="0,4,0,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Vertical" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:TileControl Kind="{Binding Kind}" IsFaceUp="{Binding IsFaceUp}" Width="32" Height="24" Margin="0,-4,0,0" Facing="West" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+        <DataTemplate x:Key="MeldInlineEast">
+            <ItemsControl ItemsSource="{Binding Tiles}" Margin="0,4,0,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Vertical" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:TileControl Kind="{Binding Kind}" IsFaceUp="{Binding IsFaceUp}" Width="32" Height="24" Margin="0,-4,0,0" Facing="East" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
 
-            <!-- ======== 第一层：牌河区（带座位标签） ======== -->
-            <!-- 北 (上) -->
-            <Grid Grid.Row="0" Grid.Column="0">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="北" Style="{StaticResource SeatLabel}" />
-                    <ItemsControl ItemsSource="{Binding Players[1].Discard}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                </StackPanel>
-            </Grid>
-
-            <!-- 中央信息区 -->
-            <Grid Grid.Row="0" Grid.Column="1">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="欢乐麻将" FontSize="38" FontWeight="Bold" FontFamily="Microsoft YaHei"
-                               Foreground="{StaticResource TitleGoldBrush}" HorizontalAlignment="Center">
+        <!-- ======== 金币徽章：座位名 + 一摞金币 + 精确数字 ========
+             摞的层数按余额分档（1~5 层），钱越多摞越高，不要求精确；
+             具体数量由旁边的数字给出，ToolTip 再补一句完整说明。
+             三家座位标签、中央自己的余额、结算面板四家总览共用这一套。
+             摞图统一 80px 画布且底部对齐，界面显示 40px（2:1 整数倍）：
+             Image 尺寸恒定，余额变化只让金币向上长，徽章高度不会跟着抖。 -->
+        <DataTemplate x:Key="CoinBadge">
+            <Border CornerRadius="13" Background="#4D102A18" BorderBrush="#66FFD980" BorderThickness="1"
+                    Padding="9,2,10,2" VerticalAlignment="Center" ToolTip="{Binding CoinHint}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SeatName}" FontSize="15" FontWeight="Bold"
+                               FontFamily="Microsoft YaHei" Foreground="#FFFFF4D6"
+                               VerticalAlignment="Center" />
+                    <Image Source="{Binding CoinStackSource}" Width="40" Height="40" Stretch="Uniform"
+                           VerticalAlignment="Bottom" Margin="2,0,0,0"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="{Binding CoinAmount}" FontSize="17" FontWeight="Bold"
+                               FontFamily="Microsoft YaHei" Foreground="#FFFFE9A8"
+                               VerticalAlignment="Center" Margin="1,0,0,0">
                         <TextBlock.Effect>
-                            <DropShadowEffect Color="#000000" BlurRadius="6" ShadowDepth="2" Opacity="0.5" />
+                            <DropShadowEffect Color="Black" BlurRadius="2" ShadowDepth="1" Opacity="0.65" />
                         </TextBlock.Effect>
                     </TextBlock>
-                    <TextBlock Text="{Binding WallRemaining}" FontSize="22" Foreground="#FFFFF4D6"
-                               FontFamily="Microsoft YaHei" HorizontalAlignment="Center" Margin="0,6,0,0" />
-                    <TextBlock Text="{Binding CurrentPlayer}" FontSize="24" Foreground="#FFFFE27A"
-                               FontFamily="Microsoft YaHei" FontWeight="Bold" HorizontalAlignment="Center" />
                 </StackPanel>
-            </Grid>
+            </Border>
+        </DataTemplate>
 
-            <!-- 东 (右) -->
-            <Grid Grid.Row="0" Grid.Column="2">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="东" Style="{StaticResource SeatLabel}" />
-                    <ItemsControl ItemsSource="{Binding Players[2].Discard}">
+        <!-- 四家徽章横排：仅结算面板使用（牌桌中部只显示自己），DataContext 直接是 Players 集合 -->
+        <DataTemplate x:Key="CoinBadgeRow">
+            <ItemsControl ItemsSource="{Binding}" HorizontalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource CoinBadge}" Margin="4,0" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+    </Grid.Resources>
+
+    <!-- ==================== 牌桌 ==================== -->
+        <!-- 金色边框圆角牌桌 -->
+        <Border x:Name="TableFrame" Margin="14" CornerRadius="26"
+                Background="{StaticResource TableBackground}"
+                BorderBrush="{StaticResource TableFrameBrush}" BorderThickness="7">
+
+            <!--
+            布局修复要点：
+            1) 四家「牌河」全部关进固定尺寸 + ClipToBounds 的容器，Auto 行不再被撑高，
+               中间的手牌行永远不会被上下挤压/下移。
+            2) 己方手牌独占整行（ColumnSpan=3）并用 Viewbox 等比缩放，14 张也能完整显示。
+            -->
+            <Grid x:Name="TableGrid">
+                <!--
+                整桌等比缩放：下面的行高/列宽/牌尺寸（30×40、46×62、32×24、42×31…）
+                全是以 1000×800 窗口、内容区 958×758 为基准调出来的。窗口变大（尤其是最大化）时，
+                由 MainWindow.UpdateTableScale 按「可用空间 ÷ 基准尺寸」算一个系数写进这里，
+                整张牌桌连同三家对手的牌一起放大——而不是只有己方手牌（带 Viewbox）在长个。
+                LayoutTransform 参与布局：父容器是拿「可用尺寸 ÷ 系数」来测量/排布的，
+                所以放大后牌桌依旧铺满窗口，不会在四周留下空白。
+                -->
+                <Grid.LayoutTransform>
+                    <ScaleTransform x:Name="TableScale" ScaleX="1" ScaleY="1" />
+                </Grid.LayoutTransform>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />   <!-- 0: 北（上家）牌河 -->
+                    <RowDefinition Height="*" />      <!-- 1: 中部（西 | 中央信息 | 东） -->
+                    <RowDefinition Height="Auto" />   <!-- 2: 南（己方）牌河 -->
+                    <RowDefinition Height="132" />    <!-- 3: 己方手牌（整行 + 缩放） -->
+                    <RowDefinition Height="Auto" />   <!-- 4: 回合提示 + 操作按钮 -->
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180" />  <!-- 西（左）：立牌 + 牌河 138 -->
+                    <ColumnDefinition Width="*" />    <!-- 中央 -->
+                    <ColumnDefinition Width="180" />  <!-- 东（右）：立牌 + 牌河 138 -->
+                </Grid.ColumnDefinitions>
+
+                <!-- ======== 北（上家）牌河：固定在顶部，不撑高行 ======== -->
+                <StackPanel Grid.Row="0" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,6,0,4">
+                    <!-- 座位标签 + 对手手牌（牌背）+ 副露（正面朝上）
+                         副露不再是单独一条横带，而是接在手牌右端、正面朝上——
+                         这就是实际牌桌上「碰/杠的牌摊在自己手牌末尾」的样子。
+                         总张数恒为 13~14（手牌少几张、副露多几张），行宽不会失控。 -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                        <ContentControl Content="{Binding Players[1]}" ContentTemplate="{StaticResource CoinBadge}"
+                                        VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <ItemsControl ItemsSource="{Binding Players[1].Hand}" VerticalAlignment="Center" IsHitTestVisible="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- 对家手牌：横向重叠的牌背。原来 14×22、步进 6，13 张压成一条
+                                         86px 的绿杠，既数不清张数也看不出是牌。放到 30×40、仅压 4px
+                                         （13 张 ≈ 342px，中央列 583px 放得下），左侧加一道竖向高光，
+                                         每张的分界才看得出来（牌背本身是无花纹的深绿，靠阴影分不开）。 -->
+                                    <!-- 对家刚摸的那张牌背也单独往外挪一点，保持四家一致的「新牌分开放」 -->
+                                    <Grid>
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Margin" Value="-4,0,0,0" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsJustDrawn}" Value="True">
+                                                        <Setter Property="Margin" Value="10,0,0,0" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <controls:TileControl IsFaceUp="False" Width="30" Height="40" />
+                                        <Rectangle Width="1.5" HorizontalAlignment="Left" Margin="0,3,0,3" Fill="#59D8F0DC" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding Players[1].Melds}" IsHitTestVisible="False"
+                                      VerticalAlignment="Center" ItemTemplate="{StaticResource MeldInlineNorth}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                    <!-- 高度 160 = 两行牌 2×66 + 28px 余量：余量给「往外掉」的歪牌用，
+                         且内容高度正好等于视口，牌河只有两行时完全不滚动、不会出现半行被切。
+                         三行以上时 (n×66+28)-160 恰为整行倍数，滚完也不会削掉某张牌。
+                         内容左右各留 16px：Border 宽度原本恰好等于一行牌总宽，
+                         歪牌落在行末时旋转的角会顶到容器边界被裁掉一块。 -->
+                    <Border x:Name="DiscardNorth" Height="160" ClipToBounds="True"
+                            RenderTransformOrigin="0.5,0.5">
+                        <!-- 对家：整块旋转 180°。牌的位置顺序与图案方向一起镜像，
+                             这样"从对面看牌河"才成立，比逐张设 Facing 更彻底
+                             （逐张转会让排列方向仍按己方视角走，看着别扭）。 -->
+                        <Border.RenderTransform>
+                            <RotateTransform Angle="180" />
+                        </Border.RenderTransform>
+                        <!-- 牌河固定尺寸不撑高布局；内容超出时可滚动，出牌后自动滚到最新一张 -->
+                        <ScrollViewer x:Name="DiscardScrollNorth" VerticalScrollBarVisibility="Hidden"
+                                      HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+                            <ItemsControl ItemsSource="{Binding Players[1].Discard}" Margin="16,0,16,28">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- 刚打出的牌随手歪着放（不上红色描边、不打光）：
+                                             RenderTransform 不参与布局，下一轮 DiscardAngle 归 0 就自动摆正 -->
+                                        <Grid RenderTransformOrigin="0.5,0.5">
+                                            <Grid.RenderTransform>
+                                                <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
+                                            </Grid.RenderTransform>
+                                            <controls:TileControl Kind="{Binding Kind}" Width="46" Height="62" Margin="2" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+
+                <!-- ======== 中央信息区 ========
+                     标题「欢乐麻将」、副标题播报（如「北 打出 八条」）都已去掉：
+                     桌面中央只留牌墙数量与当前回合，省出的高度让给两侧牌河与立牌。 -->
+                <StackPanel x:Name="CenterInfo" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding WallRemaining, StringFormat='剩 {0} 张'}" FontSize="17" Foreground="#FFFFF4D6"
+                                   FontFamily="Microsoft YaHei" VerticalAlignment="Center" />
+                        <TextBlock Text="·" FontSize="17" Foreground="#66FFF4D6" FontFamily="Microsoft YaHei"
+                                   VerticalAlignment="Center" Margin="8,0" />
+                        <TextBlock Text="{Binding CurrentPlayerName, StringFormat='轮到{0}'}" FontSize="17" Foreground="#FFFFE27A"
+                                   FontFamily="Microsoft YaHei" FontWeight="Bold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <!-- 金币场：中部只显示自己的余额（一摞金币 + 精确数字）。
+                         北 / 西 / 东三家已在各自座位标签上显示同一个 CoinBadge，
+                         这里不再重复列一遍；结算面板的四家总览仍保留。 -->
+                    <ContentControl Content="{Binding Players[0]}" ContentTemplate="{StaticResource CoinBadge}"
+                                    HorizontalAlignment="Center" Margin="0,10,0,0" />
+                </StackPanel>
+
+                <!-- ======== 西（左家）牌河：固定宽高 + 裁剪 ======== -->
+                <Grid x:Name="PanelWest" Grid.Row="1" Grid.Column="0" Grid.RowSpan="2"
+                      HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="2,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />   <!-- 0: 立牌 -->
+                        <ColumnDefinition Width="*" />      <!-- 1: 座位标签 + 副露 + 牌河 -->
+                    </Grid.ColumnDefinitions>
+                    <!-- 西家立牌：侧家的手牌从南侧看，是一列沿纵深方向叠放的牌背。
+                         每张牌相对我们是转了 90° 的：控件本身做成横躺的 32×24，
+                         同时 Facing=West 让牌背贴图也在控件内转 90°（两者一起转，牌背内框
+                         才不会变成一道道横纹——原先只转贴图不转控件就出过这个洋相）。
+                         副露（碰/杠）接在牌背列末尾、正面朝上，与手牌同一列。 -->
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" IsHitTestVisible="False" Margin="0,0,3,0">
+                    <ItemsControl ItemsSource="{Binding Players[3].Hand}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Vertical" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Margin" Value="0,-4,0,0" />
+                                            <Style.Triggers>
+                                                <!-- 刚摸的那张牌背往下错开一点，与前面的立牌分开 -->
+                                                <DataTrigger Binding="{Binding IsJustDrawn}" Value="True">
+                                                    <Setter Property="Margin" Value="0,10,0,0" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <!-- 横躺牌背按纵深叠放，每张露 20px；顶部高光是牌顶棱边受光，
+                                         没有它 13 张会糊成一根深绿柱子。14 张 = 280px，装得进 338px 侧栏。 -->
+                                    <controls:TileControl IsFaceUp="False" Width="32" Height="24" Facing="West" />
+                                    <Rectangle Height="1.5" VerticalAlignment="Top" Margin="2,0,2,0" Fill="#66D8F0DC" />
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding Players[3].Melds}" ItemTemplate="{StaticResource MeldInlineWest}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Vertical" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    </StackPanel>
+                    <Grid Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <ContentControl Grid.Row="0" Content="{Binding Players[3]}" ContentTemplate="{StaticResource CoinBadge}"
+                                    HorizontalAlignment="Center" Margin="0,0,0,2" />
+                    <Border x:Name="DiscardWest" Grid.Row="1" Width="138" Margin="0,2,0,0" ClipToBounds="True">
+                        <!-- 侧栏窄（一行 3 张），出牌超过 9 张后旧布局会把新牌裁掉；改为可滚动 + 自动滚到最新 -->
+                        <ScrollViewer x:Name="DiscardScrollWest" VerticalScrollBarVisibility="Hidden"
+                                      HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+                            <ItemsControl ItemsSource="{Binding Players[3].Discard}" Margin="0,0,0,20">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- 左家：牌横躺，牌顶朝左；刚打出的那张歪着放 -->
+                                        <Grid RenderTransformOrigin="0.5,0.5">
+                                            <Grid.RenderTransform>
+                                                <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
+                                            </Grid.RenderTransform>
+                                            <controls:TileControl Kind="{Binding Kind}" Width="42" Height="31" Margin="1"
+                                                                  Facing="West" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                    </Grid>
+                </Grid>
+
+                <!-- ======== 东（右家）牌河：固定宽高 + 裁剪 ======== -->
+                <Grid x:Name="PanelEast" Grid.Row="1" Grid.Column="2" Grid.RowSpan="2"
+                      HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="2,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />      <!-- 0: 座位标签 + 副露 + 牌河 -->
+                        <ColumnDefinition Width="Auto" />   <!-- 1: 立牌（东家在右侧，立牌贴外沿） -->
+                    </Grid.ColumnDefinitions>
+                    <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <ContentControl Grid.Row="0" Content="{Binding Players[2]}" ContentTemplate="{StaticResource CoinBadge}"
+                                    HorizontalAlignment="Center" Margin="0,0,0,2" />
+                    <Border x:Name="DiscardEast" Grid.Row="1" Width="138" Margin="0,2,0,0" ClipToBounds="True">
+                        <ScrollViewer x:Name="DiscardScrollEast" VerticalScrollBarVisibility="Hidden"
+                                      HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+                            <ItemsControl ItemsSource="{Binding Players[2].Discard}" Margin="0,0,0,20">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- 右家：牌横躺，牌顶朝右；刚打出的那张歪着放 -->
+                                        <Grid RenderTransformOrigin="0.5,0.5">
+                                            <Grid.RenderTransform>
+                                                <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
+                                            </Grid.RenderTransform>
+                                            <controls:TileControl Kind="{Binding Kind}" Width="42" Height="31" Margin="1"
+                                                                  Facing="East" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                    </Grid>
+                    <!-- 东家立牌：同西家，只是旋转方向相反；副露同样接在牌背列末尾、正面朝上 -->
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" IsHitTestVisible="False" Margin="2,0,0,0">
+                    <ItemsControl ItemsSource="{Binding Players[2].Hand}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Vertical" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Margin" Value="0,-4,0,0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsJustDrawn}" Value="True">
+                                                    <Setter Property="Margin" Value="0,10,0,0" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <!-- 同西家：横躺 32×24 + Facing=East，牌背随牌一起转 90°，14 张 = 280px -->
+                                    <controls:TileControl IsFaceUp="False" Width="32" Height="24" Facing="East" />
+                                    <Rectangle Height="1.5" VerticalAlignment="Top" Margin="2,0,2,0" Fill="#66D8F0DC" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding Players[2].Melds}" ItemTemplate="{StaticResource MeldInlineEast}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Vertical" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ======== 南（己方）牌河：固定在手牌上方，不撑高行 ======== -->
+                <!-- 同北家：160 = 两行 132 + 28px 余量，避免滚动削掉上一行牌、也装得下歪牌 -->
+                <Border x:Name="DiscardSouth" Grid.Row="2" Grid.Column="1" Height="160"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,4,0,6"
+                        ClipToBounds="True">
+                    <ScrollViewer x:Name="DiscardScrollSouth" VerticalScrollBarVisibility="Hidden"
+                                  HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+                        <ItemsControl ItemsSource="{Binding Players[0].Discard}" Margin="16,0,16,28">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid RenderTransformOrigin="0.5,0.5">
+                                        <Grid.RenderTransform>
+                                            <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
+                                        </Grid.RenderTransform>
+                                        <controls:TileControl Kind="{Binding Kind}" Width="46" Height="62" Margin="2" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- ======== 己方手牌：整行铺满 + Viewbox 等比缩放，杜绝横向裁切/下移 ======== -->
+                <Viewbox x:Name="HandViewbox" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+                         Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"
+                         Margin="10,0">
+                    <!-- 暗牌 + 副露并排成一整行：碰/杠的牌接在手牌右端、正面朝上（与桌上真实摆法一致），
+                         两者一起进 Viewbox，所以放大倍数相同、牌大小一致。 -->
+                    <StackPanel Orientation="Horizontal">
+                    <ItemsControl ItemsSource="{Binding Players[0].Hand}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <!-- 微旋转放在外层：TileControl 自己的 RenderTransform 用于抬起动画，不能抢占。
+                                     刚摸的牌（IsJustDrawn）不参加排序、固定在最右侧，左边多留 24px 空隙
+                                     与整理好的手牌分开，一眼就能找到「哪张是刚摸上来的」。 -->
+                                <Grid RenderTransformOrigin="0.5,1">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Margin" Value="2" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsJustDrawn}" Value="True">
+                                                    <Setter Property="Margin" Value="24,2,2,2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <Grid.RenderTransform>
+                                        <TransformGroup>
+                                            <RotateTransform Angle="{Binding Tilt}" />
+                                            <TranslateTransform Y="{Binding JitterY}" />
+                                        </TransformGroup>
+                                    </Grid.RenderTransform>
+                                    <controls:TileControl Kind="{Binding Kind}" Width="66" Height="90"
+                                                          WinFlash="{Binding WinFlash}"
+                                                          IsJustDrawn="{Binding IsJustDrawn}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.ItemContainerStyle>
+                            <Style TargetType="ContentPresenter">
+                                <EventSetter Event="MouseLeftButtonDown" Handler="HandTile_Click" />
+                            </Style>
+                        </ItemsControl.ItemContainerStyle>
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" />
+                                <StackPanel Orientation="Horizontal" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
+                        <!-- 副露：没有副露时宽度为 0（空隙做在组模板上），不会留下空档 -->
+                        <ItemsControl ItemsSource="{Binding Players[0].Melds}"
+                                      ItemTemplate="{StaticResource MeldInlineSouth}"
+                                      VerticalAlignment="Bottom">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </StackPanel>
+                </Viewbox>
+
+                <!-- ======== 回合提示 + 碰/杠/胡/过按钮 ======== -->
+                <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,6,0,12">
+                    <!-- 平时：轮到谁出牌的提示 -->
+                    <TextBlock x:Name="TurnHint" Text="轮到你了，请出牌" FontSize="30" FontWeight="Bold"
+                               Foreground="{StaticResource TurnHintBrush}" FontFamily="Microsoft YaHei"
+                               HorizontalAlignment="Center" Margin="0,0,0,8">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="#000000" BlurRadius="4" ShadowDepth="1" Opacity="0.45" />
+                        </TextBlock.Effect>
+                    </TextBlock>
+                    <!-- 被征询时（别人打牌后你能碰/杠/胡）：弹出的声明面板，默认隐藏 -->
+                    <StackPanel x:Name="ClaimPanel" Visibility="Collapsed" Orientation="Vertical"
+                                HorizontalAlignment="Center">
+                        <TextBlock x:Name="ClaimHint" Text="是否碰 / 杠 / 胡？" FontSize="26" FontWeight="Bold"
+                                   Foreground="#FFFFE27A" FontFamily="Microsoft YaHei"
+                                   HorizontalAlignment="Center" Margin="0,0,0,8">
+                            <TextBlock.Effect>
+                                <DropShadowEffect Color="#000000" BlurRadius="4" ShadowDepth="1" Opacity="0.45" />
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Name="PongButton" Content="碰" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                                    Background="{StaticResource BtnPongBrush}" Click="PongButton_Click" />
+                            <Button Name="KongButton" Content="杠" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                                    Background="{StaticResource BtnKongBrush}" Click="KongButton_Click" Margin="10,0,0,0" />
+                            <Button Name="WinButton" Content="胡啦" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                                    Background="{StaticResource BtnWinBrush}" Click="WinButton_Click" Margin="10,0,0,0" />
+                            <Button Name="PassButton" Content="过" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
+                                    Background="{StaticResource BtnPassBrush}" Click="PassButton_Click" Margin="10,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
+        </Border>
 
-            <!-- 西 (左) -->
-            <Grid Grid.Row="2" Grid.Column="0">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="西" Style="{StaticResource SeatLabel}" />
-                    <ItemsControl ItemsSource="{Binding Players[3].Discard}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                </StackPanel>
-            </Grid>
+        <!-- ==================== 出牌飞行层（覆盖全窗，不拦截鼠标） ==================== -->
+        <Canvas x:Name="FlyLayer" IsHitTestVisible="False" />
 
-            <!-- 南 (下，己方） -->
-            <Grid Grid.Row="2" Grid.Column="1">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="南 · 你" Style="{StaticResource SeatLabel}" />
-                    <ItemsControl ItemsSource="{Binding Players[0].Discard}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <controls:TileControl Kind="{Binding Kind}" Width="60" Height="82" Margin="2" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                </StackPanel>
-            </Grid>
+        <!-- ==================== 胡牌全屏特效层（默认隐藏） ==================== -->
+        <!-- Margin=-60：屏幕震动时整层跟着抖，负边距保证抖动时四周不会露出牌桌底色 -->
+        <Grid x:Name="WinOverlay" Visibility="Collapsed" IsHitTestVisible="True" Margin="-60">
+            <Grid.Background>
+                <RadialGradientBrush Center="0.5,0.46" RadiusX="0.75" RadiusY="0.75">
+                    <GradientStop Color="#D9000000" Offset="0" />
+                    <GradientStop Color="#EE000000" Offset="1" />
+                </RadialGradientBrush>
+            </Grid.Background>
 
-            <!-- 东（右下） -->
-            <Grid Grid.Row="2" Grid.Column="2">
-                <ItemsControl ItemsSource="{Binding Players[2].Discard}" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <controls:TileControl Kind="{Binding Kind}" Width="52" Height="72" Margin="2" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
-            </Grid>
+            <!-- 放射光芒（代码生成后缓慢旋转，像金光从中心射出去） -->
+            <Canvas x:Name="RayCanvas" IsHitTestVisible="False" />
 
-            <!-- ======== 第二层：己方手牌 ======== -->
-            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Background="Transparent">
-                <ItemsControl ItemsSource="{Binding Players[0].Hand}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <controls:TileControl Kind="{Binding Kind}" Width="100" Height="138" Margin="2" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                    <ItemsControl.ItemContainerStyle>
-                        <Style TargetType="ContentPresenter">
-                            <EventSetter Event="MouseLeftButtonDown" Handler="HandTile_Click" />
-                        </Style>
-                    </ItemsControl.ItemContainerStyle>
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
+            <!-- 冲击波环 -->
+            <Canvas x:Name="RingCanvas" IsHitTestVisible="False" />
+
+            <!-- 金光爆发 -->
+            <Ellipse x:Name="WinBurst" Width="560" Height="560"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-20,0,0">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#FFE9A23B" Offset="0" />
+                        <GradientStop Color="#FFD4AF37" Offset="0.45" />
+                        <GradientStop Color="#00D4AF37" Offset="1" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+
+            <!-- 爆裂火花 / 金币（代码生成） -->
+            <Canvas x:Name="SparkCanvas" IsHitTestVisible="False" />
+
+            <!-- 彩带画布 -->
+            <Canvas x:Name="ConfettiCanvas" IsHitTestVisible="False" />
+
+            <!-- 中央文字与按钮（RenderTransform 由代码按窗口大小缩放，最大化时标题才不会显小） -->
+            <StackPanel x:Name="WinPanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        RenderTransformOrigin="0.5,0.5">
+                <TextBlock x:Name="WinTitle" Text="胡啦！"
+                           FontSize="96" FontWeight="Bold" FontFamily="Microsoft YaHei"
+                           Foreground="{StaticResource TitleGoldBrush}"
+                           HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="#FF8A1F00" BlurRadius="20" ShadowDepth="0" Opacity="0.95" />
+                    </TextBlock.Effect>
+                </TextBlock>
+                <TextBlock x:Name="WinSubtitle" Text=""
+                           FontSize="26" FontWeight="Bold" FontFamily="Microsoft YaHei"
+                           Foreground="#FFFFF4D6" HorizontalAlignment="Center" Margin="0,8,0,18" />
+                <!-- 金币场：本局收支与终局排名用文字账目（要精确），四家余额用金币摞 + 数字 -->
+                <TextBlock x:Name="WinCoins" Text="" Visibility="Collapsed"
+                           FontSize="20" FontFamily="Microsoft YaHei"
+                           Foreground="#FFFFE9B0" HorizontalAlignment="Center" TextAlignment="Center"
+                           Margin="0,0,0,10" />
+                <ContentControl x:Name="WinCoinBadges" Content="{Binding Players}"
+                                ContentTemplate="{StaticResource CoinBadgeRow}"
+                                Visibility="Collapsed" HorizontalAlignment="Center"
+                                Margin="0,4,0,30" RenderTransformOrigin="0.5,0.5">
+                    <!-- 结算面板整体按窗口放大，徽章再放一点才配得上 96px 的标题 -->
+                    <ContentControl.RenderTransform>
+                        <ScaleTransform ScaleX="1.3" ScaleY="1.3" />
+                    </ContentControl.RenderTransform>
+                </ContentControl>
+                <!-- 动态难度升档提示：单独一行，避免把结算文字挤成超长一行被裁掉 -->
+                <TextBlock x:Name="WinNotice" Text="" Visibility="Collapsed"
+                           FontSize="18" FontWeight="SemiBold" FontFamily="Microsoft YaHei"
+                           Foreground="#FFFFD980" HorizontalAlignment="Center" Margin="0,0,0,14" />
+                <Button x:Name="WinContinueButton" Content="再来一局"
+                        Width="180" Height="64" Style="{StaticResource HappyActionButton}"
+                        Background="{StaticResource BtnWinBrush}" Click="WinContinueButton_Click"
+                        HorizontalAlignment="Center" />
             </StackPanel>
 
-            <!-- ======== 第三层：回合提示 ======== -->
-            <TextBlock Grid.Row="3" Grid.Column="1" Text="轮到你了" FontSize="34" FontWeight="Bold"
-                       Foreground="{StaticResource TurnHintColor}" FontFamily="Microsoft YaHei"
-                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock.Effect>
-                    <DropShadowEffect Color="#000000" BlurRadius="4" ShadowDepth="1" Opacity="0.45" />
-                </TextBlock.Effect>
-            </TextBlock>
-
-            <!-- ======== 第四层：字幕 ======== -->
-            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SubtitleText}" FontSize="28" Foreground="#FFFFFFFF"
-                       Background="#99000000" FontFamily="Microsoft YaHei"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-
-            <!-- ======== 第五层：碰/杠/胡/过按钮 ======== -->
-            <StackPanel Grid.Row="5" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal" Margin="0,6,0,10">
-                <Button Name="PongButton" Content="碰" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
-                        Background="{StaticResource BtnPongBrush}" Click="PongButton_Click" />
-                <Button Name="KongButton" Content="杠" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
-                        Background="{StaticResource BtnKongBrush}" Click="KongButton_Click" Margin="10,0,0,0" />
-                <Button Name="WinButton" Content="胡啦" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
-                        Background="{StaticResource BtnWinBrush}" Click="WinButton_Click" Margin="10,0,0,0" />
-                <Button Name="PassButton" Content="过" Width="120" Height="92" Style="{StaticResource HappyActionButton}"
-                        Background="{StaticResource BtnPassBrush}" Click="PassButton_Click" Margin="10,0,0,0" />
-            </StackPanel>
+            <!-- 白闪：压在最上层，胡牌瞬间整屏过曝一下，"打击感"主要来自这一层 -->
+            <Rectangle x:Name="WinFlashRect" Fill="#FFFFF6DC" Opacity="0" IsHitTestVisible="False" />
         </Grid>
-    </Border>
+
+        <!-- ======== 配音开关：右上角空白区，随时可关；设置会记住 ======== -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,20,26,0" Panel.ZIndex="60" IsHitTestVisible="True">
+            <Border Background="#B300140A" CornerRadius="10" Padding="12,6" BorderBrush="#66FFE9A8" BorderThickness="1">
+                <StackPanel Orientation="Horizontal">
+                    <CheckBox x:Name="VoiceToggle" Content="配音" IsChecked="True"
+                              Foreground="#FFFFE9A8" FontSize="14" FontWeight="Bold"
+                              FontFamily="Microsoft YaHei" VerticalAlignment="Center"
+                              Margin="0,0,14,0" Click="AudioToggle_Click" />
+                    <CheckBox x:Name="SfxToggle" Content="音效" IsChecked="True"
+                              Foreground="#FFFFE9A8" FontSize="14" FontWeight="Bold"
+                              FontFamily="Microsoft YaHei" VerticalAlignment="Center"
+                              Margin="0,0,14,0" Click="AudioToggle_Click" />
+                    <CheckBox x:Name="SeatToggle" Content="报席位" IsChecked="False"
+                              Foreground="#FFFFE9A8" FontSize="14"
+                              FontFamily="Microsoft YaHei" VerticalAlignment="Center"
+                              Click="AudioToggle_Click" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Grid>
 </Window>

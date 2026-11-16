@@ -54,7 +54,12 @@ namespace Mahjong.Core.Game
 
         /// <summary>
         ///多家声明结算。返回赢的声明与声明者；全部放弃返回 null。
-        ///优先级：胡 > 杠 > 碰（同为胡时取离点炮者最近，逆时针）。
+        ///优先级：胡 > 杠 > 碰。
+        ///
+        /// 一炮多响口径（已确认，勿改）：只产生一个赢家，不做多赢家分摊。
+        /// 多家同时能胡时，按出牌座位顺序取「离放铳者最近的下家」，即 (p - discarder + 4) % 4 最小者；
+        /// 与谁先点按钮、谁先返回无关——征询是并行收集完再统一结算的。
+        /// 抢杠胡复用本结算器，此时 discarder 是杠家，同样取离杠家最近的一家。
         /// </summary>
         public ClaimResolution Resolve(IList<ClaimOption>[] claimsByPlayer, int discarder)
         {

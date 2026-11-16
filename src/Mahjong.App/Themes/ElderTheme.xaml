@@ -31,6 +31,7 @@
     <Color x:Key="TileTopColor">#FFFFFFFF</Color>       <!-- 顶部高光纯白 -->
     <Color x:Key="TileBottomColor">#FFE8E8DF</Color>    <!-- 底部暗面 -->
     <Color x:Key="TileBorderColor">#FFD2D2C8</Color>    <!-- 牌边浅灰 -->
+    <Color x:Key="TileThicknessColor">#FFCFCFC4</Color> <!-- 牌身底部厚度（立体块感） -->
     <Color x:Key="TileShadowColor">#3D000000</Color>    <!-- 牌投影 -->
 
     <!-- 高亮 / 状态 -->
@@ -39,7 +40,7 @@
     <Color x:Key="TileSelectedBorderColor">#FFE8A100</Color> <!-- 选中描边 -->
     <Color x:Key="TileHoverBorderColor">#FFFFB300</Color>    <!-- 悬浮描边 -->
     <Color x:Key="TileWinFlashColor">#FFFF3B30</Color>       <!-- 胡牌闪红 -->
-    <Color x:Key="TileDiscardHighlightColor">#FFFF6B6B</Color><!-- 刚打出红边 -->
+    <!-- 刚打出的牌不再用红边/红闪区隔，改为在牌河里略微歪着摆放，故移除专用色 -->
 
     <!-- ============ 牌桌（绿色绒布） ============ -->
     <RadialGradientBrush x:Key="TableBackground" GradientOrigin="0.5,0.4" Center="0.5,0.4" RadiusX="0.82" RadiusY="0.82">
@@ -98,6 +99,7 @@
     <!-- 回合提示 -->
     <sys:Double x:Key="TurnHintFontSize">34</sys:Double>
     <Color x:Key="TurnHintColor">#FFFFE27A</Color>
+    <SolidColorBrush x:Key="TurnHintBrush" Color="{StaticResource TurnHintColor}" />
 
     <!-- 字幕 -->
     <sys:Double x:Key="SubtitleFontSize">28</sys:Double>

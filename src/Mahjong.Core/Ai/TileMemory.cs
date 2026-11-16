@@ -22,7 +22,7 @@ namespace Mahjong.Core.Ai
             for (int k = 0; k < 34; k++) _visible[k] = 4;
         }
 
-        /// <summary>记录一张牌被打出（进牌河）。</summary>
+        /// <summary>记录一张已可见的牌（牌河 / 自己手牌 / 副露），外面剩余减 1，不低于 0。</summary>
         public void RecordDiscard(Tile tile)
         {
             int k = (int)tile.Kind;
@@ -36,6 +36,25 @@ namespace Mahjong.Core.Ai
             {
                 int k = (int)t.Kind;
                 if (_visible[k] > 0) _visible[k]--;
+            }
+        }
+
+        /// <summary>
+        /// 每次决策前用公开信息重建可见牌：自己手牌 + 牌河 + 四家副露。
+        /// 外面剩余 = 4 - 上述可见张数。只用引擎给出的公开信息，不偷看别家暗牌。
+        /// </summary>
+        public void Rebuild(IList<Tile> hand, IList<Tile> discards, IList<Meld>[] allMelds)
+        {
+            for (int k = 0; k < 34; k++) _visible[k] = 4;
+            if (hand != null) foreach (var t in hand) RecordDiscard(t);
+            if (discards != null) foreach (var t in discards) RecordDiscard(t);
+            if (allMelds != null)
+            {
+                foreach (var melds in allMelds)
+                {
+                    if (melds == null) continue;
+                    foreach (var m in melds) RecordMeld(m);
+                }
             }
         }
 

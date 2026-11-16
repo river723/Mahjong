@@ -109,6 +109,56 @@ namespace Mahjong.Tests
             Assert.Equal(ClaimType.Win, res.Type);
         }
 
+        // ==================== 一炮多响：单赢家 + 座位序优先级 ====================
+        // 口径（已确认）：多家同时能胡只算一家胡，按出牌顺序取离放铳者最近的下家；
+        // 与谁先点按钮无关，征询是三家并行收集完再统一结算的。端到端验证见 CoinRulesTests。
+
+        [Theory]
+        [InlineData(0, 1)]
+        [InlineData(1, 2)]
+        [InlineData(2, 3)]
+        [InlineData(3, 0)]
+        public void 一炮多响_三家同胡_只取离放铳者最近的下家(int discarder, int expectedWinner)
+        {
+            var resolver = new ClaimResolver(Rules());
+            var claims = new List<ClaimOption>[4];
+            for (int p = 0; p < 4; p++)
+            {
+                claims[p] = p == discarder ? null :
+                    new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) };
+            }
+            var res = resolver.Resolve(claims, discarder);
+            Assert.NotNull(res);
+            Assert.Equal(expectedWinner, res.PlayerIndex);
+            Assert.Equal(ClaimType.Win, res.Type);
+        }
+
+        [Fact]
+        public void 一炮多响_近家放弃时_远家才递补()
+        {
+            var resolver = new ClaimResolver(Rules());
+            var claims = new List<ClaimOption>[4];
+            claims[1] = null;   // 最近的下家放弃，不应由它占位
+            claims[2] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) };
+            claims[3] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) };
+            var res = resolver.Resolve(claims, discarder: 0);
+            Assert.Equal(2, res.PlayerIndex);
+            Assert.Equal(ClaimType.Win, res.Type);
+        }
+
+        [Fact]
+        public void 一炮多响_胡优先于其他家的碰杠()
+        {
+            var resolver = new ClaimResolver(Rules());
+            var claims = new List<ClaimOption>[4];
+            claims[1] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Kong, TileKind.Man1) };
+            claims[2] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) };
+            claims[3] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Pong, TileKind.Man1) };
+            var res = resolver.Resolve(claims, discarder: 0);
+            Assert.Equal(2, res.PlayerIndex);
+            Assert.Equal(ClaimType.Win, res.Type);
+        }
+
         [Fact]
         public void 无吃_永不产生吃选项()
         {
@@ -198,6 +248,88 @@ namespace Mahjong.Tests
             }
             // 50 层内应有流局
             Assert.Fail("50 个 seed 内未出现流局");
+        }
+
+        /// <summary>
+        /// 回归：自摸成胡时必须广播「带 Win 选项」的 ConcealedActionOffered，并能真正胡牌结束。
+        /// 旧代码用不带选项的 ClaimOffered 重载（UI 收不到胡按钮）、且 HumanAgent 一律放弃胡。
+        /// 用「庄家起手 14 张即成胡」的确定性牌墙种子构造场景，避免依赖随机对局概率。
+        /// </summary>
+        [Fact]
+        public async Task 自摸胡_事件携带Win选项_且能胡牌结束()
+        {
+            // 找一个天胡种子：牌墙前 14 张正好是庄家起手牌且成胡
+            int seed = -1;
+            for (int s = 0; s < 200000 && seed < 0; s++)
+            {
+                var wall = new Wall(s);
+                int[] counts = new int[34];
+                for (int i = 0; i < 14; i++) counts[(int)wall.AllTiles[i].Kind]++;
+                if (WinChecker.CanWinFull(counts, Rules())) seed = s;
+            }
+            Assert.True(seed >= 0, "未能找到天胡牌墙种子");
+
+            bool sawOffer = false;
+            bool hasWinOption = false;
+            var agents = new IAgent[4];
+            for (int i = 0; i < 4; i++)
+            {
+                // 能胡就胡；别人打牌时不声明
+                agents[i] = new ScriptedAgent(i,
+                    concealedRule: ctx => ctx.ClaimOptions.FirstOrDefault(o => o.Type == ClaimType.Win));
+            }
+            var engine = new GameEngine(Rules(), agents, 0, wallSeed: seed);
+            engine.EventRaised += e =>
+            {
+                if (e.Type != GameEventType.ConcealedActionOffered) return;
+                sawOffer = true;
+                if (e.ClaimOptions != null && e.ClaimOptions.Any(o => o.Type == ClaimType.Win))
+                    hasWinOption = true;
+            };
+            var result = await engine.RunAsync();
+
+            Assert.True(sawOffer, "自摸成胡未广播 ConcealedActionOffered，UI 不会弹出胡按钮");
+            Assert.True(hasWinOption, "自摸征询事件未携带 Win 选项");
+            Assert.False(result.IsDraw, "自摸应胡牌结束，而不是继续出牌直至流局");
+            Assert.True(result.IsSelfDraw, "应为自摸胡");
+        }
+
+        /// <summary>
+        /// 回归：碰/杠后主循环不得再摸一张牌。
+        /// 出牌阶段暗牌数应恒为 14 - 3×副露组数（即 3n+2）；若重复摸牌会变成 3n，
+        /// 导致「碰过牌就再也判不出胡」。
+        /// </summary>
+        [Fact]
+        public async Task 碰杠后不重复摸牌_出牌阶段手牌恒为3n加2()
+        {
+            bool sawPong = false;
+            bool badShape = false;
+
+            for (int seed = 0; seed < 200 && !sawPong; seed++)
+            {
+                var agents = new IAgent[4];
+                for (int i = 0; i < 4; i++)
+                {
+                    agents[i] = new ScriptedAgent(i,
+                        discardRule: ctx =>
+                        {
+                            int expected = 14 - 3 * ctx.Melds.Count;
+                            if (ctx.Hand.Count != expected) badShape = true;
+                            return ctx.Hand[0];
+                        },
+                        claimRule: ctx => ctx.ClaimOptions.FirstOrDefault(o => o.Type == ClaimType.Pong),
+                        concealedRule: ctx => null);  // 不胡，让对局继续
+                }
+                var engine = new GameEngine(Rules(), agents, 0, wallSeed: seed);
+                engine.EventRaised += e =>
+                {
+                    if (e.Type == GameEventType.ClaimResolved && e.Message == "碰") sawPong = true;
+                };
+                await engine.RunAsync();
+            }
+
+            Assert.True(sawPong, "200 个 seed 内未出现碰");
+            Assert.False(badShape, "出牌阶段暗牌数不是 3n+2：碰/杠后多摸了一张牌");
         }
     }
 }
