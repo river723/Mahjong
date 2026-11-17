@@ -218,8 +218,7 @@ namespace Mahjong.App
             {
                 try
                 {
-                    System.IO.File.AppendAllText(@"e:\cc_study\mj\events.txt",
-                        DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] GameStarted handler entered\n");
+                    GameLog.AppendEvent(DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] GameStarted handler entered\n");
                     // 初始发牌：从引擎状态读出各家起手 13/14 张（仅读一次，后续增量靠 TileDrawn）
                     for (int p = 0; p < 4; p++)
                     {
@@ -235,8 +234,7 @@ namespace Mahjong.App
                         // 庄家起手 14 张里多出来的那张就是「刚摸上来的」，照样单独摆在最右侧。
                         // 引擎对庄家首轮不再补发 TileDrawn，所以要在发牌这一步补上标记。
                         if (n == 14 && lastTile != null) vmPlayer.MarkOpeningDrawnTile(lastTile);
-                        System.IO.File.AppendAllText(@"e:\cc_study\mj\events.txt",
-                            DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] p=" + p + " hand=" + n + "\n");
+                        GameLog.AppendEvent(DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] p=" + p + " hand=" + n + "\n");
                     }
                     // 调试钩子塞的假副露是「凭空多出来」的牌：真实发牌不会替它扣手牌。
                     // 这里按假副露张数从手牌尾部扣掉，保持牌桌守恒（正常启动不进这个分支）。
@@ -248,14 +246,12 @@ namespace Mahjong.App
                         for (int i = 0; i < fakeTiles && hand.Count > 1; i++)
                             hand.RemoveAt(hand.Count - 1);
                     }
-                    System.IO.File.AppendAllText(@"e:\cc_study\mj\events.txt",
-                        DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] GameStarted handler done, Players[0].Hand.Count=" +
-                        viewModel.Players[0].Hand.Count + "\n");
+                    GameLog.AppendEvent(DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] GameStarted handler done, Players[0].Hand.Count=" +
+                    viewModel.Players[0].Hand.Count + "\n");
                 }
                 catch (Exception ex)
                 {
-                    System.IO.File.AppendAllText(@"e:\cc_study\mj\events.txt",
-                        DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] GameStarted handler EX: " + ex + "\n");
+                    GameLog.AppendEvent(DateTime.Now.ToString("HH:mm:ss.fff") + " [UI] GameStarted handler EX: " + ex + "\n");
                 }
             };
             _host.TileDrawn += (playerIndex, tile, message) =>
@@ -268,7 +264,7 @@ namespace Mahjong.App
                 _lastDiscarder = playerIndex;
                 // 新打出的这张歪着摆放（JustDiscarded → DiscardAngle）；本家上一张同时摆正。
                 // 到下一轮（本家再打一张）它才归位，比原来闪 0.85 秒就好找得多。
-                viewModel.Players[playerIndex].AddDiscard(tile);
+                TileViewModel vm = viewModel.Players[playerIndex].AddDiscard(tile);
                 // 牌河固定尺寸，出牌多了末尾的新牌会被裁掉：滚到最新一张
                 ScrollDiscardToLatest(playerIndex);
                 // 出牌后从手牌移除对应那张。四家都要扣：
@@ -276,10 +272,13 @@ namespace Mahjong.App
                 viewModel.Players[playerIndex].RemoveHandTile(tile);
                 // 这一轮结束：上一巡「刚摸的牌」重新参加排序，归到正常位置。
                 viewModel.Players[playerIndex].CommitDrawnTile();
-                // 出牌飞行动画（人类方用刚才点击的手牌位置作为起点）
+                // 出牌飞行动画（人类方用刚才点击的手牌位置作为起点）。
+                // 落点在动画开始前量：飞行牌要精确落在「牌河里那张牌真正停住的位置」，
+                // 而不是牌河中心，否则落定瞬间还要再挪一下、看着像跳。量取前先同步滚到最后，
+                // 保证和挂牌的位置完全一致。
                 Point? from = (playerIndex == 0) ? _pendingDiscardFrom : null;
                 _pendingDiscardFrom = null;
-                Dispatcher.BeginInvoke(new Action(() => FlyDiscard(playerIndex, tile.Kind, from)));
+                Dispatcher.BeginInvoke(new Action(() => FlyDiscard(playerIndex, tile.Kind, from, vm)));
             };
             _host.ClaimResolved += (playerIndex, claimType, tile, message) =>
             {
@@ -644,8 +643,7 @@ namespace Mahjong.App
         {
             try
             {
-                System.IO.File.AppendAllText(@"e:\cc_study\mj\events.txt",
-                    DateTime.Now.ToString("HH:mm:ss.fff") + " [Claim] " + line + "\n");
+                GameLog.AppendEvent(DateTime.Now.ToString("HH:mm:ss.fff") + " [Claim] " + line + "\n");
             }
             catch { }
         }
@@ -653,7 +651,7 @@ namespace Mahjong.App
         // ============================================================
         // 出牌飞行动画：在 FlyLayer 上生成一张牌克隆，从起点抛物线飞到牌河落点
         // ============================================================
-        private void FlyDiscard(int playerIndex, TileKind kind, Point? fromScreen)
+        private void FlyDiscard(int playerIndex, TileKind kind, Point? fromScreen, TileViewModel restVm = null)
         {
             if (FlyLayer == null) return;
 
@@ -669,9 +667,14 @@ namespace Mahjong.App
             tw *= _tableScale;
             th *= _tableScale;
 
-            // 落点：对应牌河 Border 的屏幕中心
-            Point target = GetDiscardCenterScreen(playerIndex);
-            Point targetLocal = FlyLayer.PointFromScreen(target);
+            // 落点：优先取「牌河里那张新牌真正停住的位置」（含歪放、整桌缩放、北家 180° 旋转），
+            // 拿不到时才退回牌河 Border 中心。飞行牌精确落在停留位上，落定瞬间不需要再挪。
+            Point target = FlyLayer.PointFromScreen(GetDiscardCenterScreen(playerIndex));
+            Point? rest = GetDiscardRestPoint(playerIndex, restVm);
+            if (rest.HasValue) target = rest.Value;
+            else if (restVm != null && restVm.FlyPending)
+                restVm.FlyPending = false;   // 量不到停留位：飞行牌不会落到那张牌上，立即把它显出来
+            Point targetLocal = target;
 
             // 起点：人类取点击位置；AI 从座位方向飞入
             Point sourceLocal;
@@ -686,7 +689,7 @@ namespace Mahjong.App
                 else if (playerIndex == 1) oy = -130;
                 else if (playerIndex == 2) ox = 130;
                 else ox = -130;
-                // 起手点相对牌河中心的距离同样跟着整桌缩放走，牌桌放大后才不会显得"从很近的地方窜出来"
+                // 起手点相对牌河中心/停留位的距离同样跟着整桌缩放走，牌桌放大后才不会显得"从很近的地方窜出来"
                 ox *= _tableScale;
                 oy *= _tableScale;
                 sourceLocal = new Point(targetLocal.X - ox, targetLocal.Y - oy);
@@ -698,7 +701,8 @@ namespace Mahjong.App
             double peak = Math.Max(48, Math.Abs(dy) * 0.5);   // 更夸张的拱起
             double tilt = (playerIndex % 2 == 0) ? -22 : 22;    // 飞行中带旋转，落定回正
 
-            // 本批飞行牌（主牌 + 拖影），统一清理，杜绝残留在手牌上
+            // 本批飞行牌（主牌 + 拖影），统一清理，杜绝残留在手牌上。
+            // 飞行牌与停留牌同位置：落定瞬间把隐藏的停留牌显出来，观感就是「牌被扔进了那一格」。
             var flyTiles = new System.Collections.Generic.List<TileControl>();
             bool cleaned = false;
             Action cleanup = () =>
@@ -708,6 +712,7 @@ namespace Mahjong.App
                 foreach (var t in flyTiles)
                     if (t != null) FlyLayer.Children.Remove(t);
                 flyTiles.Clear();
+                if (restVm != null && restVm.FlyPending) restVm.FlyPending = false;
             };
 
             try
@@ -824,8 +829,11 @@ namespace Mahjong.App
             else if (playerIndex == 2) border = DiscardEast;
             else border = DiscardWest;
             if (border == null) return new Point();
-            var tl = border.PointToScreen(new Point(0, 0));
-            return new Point(tl.X + border.ActualWidth / 2, tl.Y + border.ActualHeight / 2);
+            // 必须把「本地中心点」交给 PointToScreen 整体变换，而不是取本地原点再补半宽半高：
+            // 北家牌河整块旋转 180°（RenderTransform），本地原点的屏幕位置落在盒子的右下角，
+            // 原点+半宽半高 会偏到 (W/2, H/2) 之外——北家出牌动画直接飞到东家那边。
+            // 中心点在旋转下不变，LayoutTransform 缩放也会由 PointToScreen 一并算好。
+            return border.PointToScreen(new Point(border.ActualWidth / 2, border.ActualHeight / 2));
         }
 
         /// <summary>
@@ -835,11 +843,7 @@ namespace Mahjong.App
         /// </summary>
         private void ScrollDiscardToLatest(int playerIndex)
         {
-            ScrollViewer sv;
-            if (playerIndex == 0) sv = DiscardScrollSouth;
-            else if (playerIndex == 1) sv = DiscardScrollNorth;
-            else if (playerIndex == 2) sv = DiscardScrollEast;
-            else sv = DiscardScrollWest;
+            var sv = DiscardScrollViewerOf(playerIndex);
             if (sv == null) return;
 
             // ItemsControl 的容器是异步生成的，等布局完成后再滚，确保滚到真正的内容末尾
@@ -851,6 +855,64 @@ namespace Mahjong.App
                 // 牌河超过两行时最新打出的牌反而被滚出视口看不见，所以不能反向。
                 sv.ScrollToEnd();
             }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        /// <summary>玩家索引 → 对应牌河的 ScrollViewer（0 南 / 1 北 / 2 东 / 3 西）。</summary>
+        private ScrollViewer DiscardScrollViewerOf(int playerIndex)
+        {
+            switch (playerIndex)
+            {
+                case 0: return DiscardScrollSouth;
+                case 1: return DiscardScrollNorth;
+                case 2: return DiscardScrollEast;
+                default: return DiscardScrollWest;
+            }
+        }
+
+        /// <summary>
+        /// 量出「刚打出的这张牌」在牌河里真正停住的位置（FlyLayer 局部坐标）。
+        /// 飞行牌直接落在停留位上，而不是牌河中心——否则牌被 WrapPanel 排到别处，
+        /// 落定瞬间还要再挪一下、看着像跳。
+        /// 返回 null 表示量不到（容器未生成、布局未就绪等），调用方退回牌河中心兜底。
+        /// </summary>
+        private Point? GetDiscardRestPoint(int playerIndex, TileViewModel vm)
+        {
+            if (vm == null) return null;
+            var sv = DiscardScrollViewerOf(playerIndex);
+            if (sv == null) return null;
+            var ic = sv.Content as ItemsControl;
+            if (ic == null) return null;
+
+            try
+            {
+                // ItemsControl 的容器是异步生成的：先强制布局，确认这张牌确实排进了牌河；
+                // 再滚到最新一张，量出来的才是最终显示位置（滚动偏移会一起算进变换）。
+                sv.UpdateLayout();
+                sv.ScrollToEnd();
+                ic.UpdateLayout();
+
+                int idx = ic.Items.IndexOf(vm);
+                if (idx < 0) return null;
+                var container = ic.ItemContainerGenerator.ContainerFromIndex(idx) as FrameworkElement;
+                if (container == null || container.ActualWidth <= 0) return null;
+
+                // 数据模板根节点（那张带歪放变换的 Grid）。它的中心点经完整变换链——
+                // WrapPanel 排位、滚动偏移、北家 180° 旋转、整桌 LayoutTransform 缩放——
+                // 落到 FlyLayer 坐标系，就是飞行牌该去的落点。
+                FrameworkElement visual = container;
+                if (VisualTreeHelper.GetChildrenCount(container) > 0 &&
+                    VisualTreeHelper.GetChild(container, 0) is FrameworkElement root)
+                {
+                    if (root.RenderSize.Width > 0 && root.RenderSize.Height > 0) visual = root;
+                }
+                var center = new Point(visual.RenderSize.Width / 2, visual.RenderSize.Height / 2);
+                return visual.TransformToVisual(FlyLayer).Transform(center);
+            }
+            catch
+            {
+                // 任何一步不稳（容器未生成、布局中）都退回牌河中心，别让动画消失
+                return null;
+            }
         }
 
         // ============================================================
@@ -1482,6 +1544,17 @@ namespace Mahjong.App
             // 两个 worker 同时调 PlaySound（进程级、后一次会打断前一次）会把声音切碎。
             _host.Audio.Dispose();
             var w = new MainWindow();
+            // 新窗口继承上一局的窗口状态：最大化后点「再来一局」，新窗口保持最大化，
+            // 否则会退回 XAML 默认的 1000×800。手动调整过的窗口尺寸也一并继承。
+            w.WindowState = WindowState;
+            if (WindowState != WindowState.Maximized)
+            {
+                w.WindowStartupLocation = WindowStartupLocation.Manual;
+                w.Left = Left;
+                w.Top = Top;
+                w.Width = Width;
+                w.Height = Height;
+            }
             w.Show();
             Close();
         }

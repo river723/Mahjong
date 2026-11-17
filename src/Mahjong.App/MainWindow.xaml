@@ -208,9 +208,20 @@
                             <ItemsControl ItemsSource="{Binding Players[1].Discard}" Margin="16,0,16,28">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <!-- 刚打出的牌随手歪着放（不上红色描边、不打光）：
-                                             RenderTransform 不参与布局，下一轮 DiscardAngle 归 0 就自动摆正 -->
+                                        <!-- 刚打出的牌随手歪着放着（不上红色描边、不打光）：
+                                             RenderTransform 不参与布局，下一轮 DiscardAngle 归 0 就自动摆正。
+                                             出牌飞行途中先隐身（FlyPending），等飞行牌飞到同一位置再显现。 -->
                                         <Grid RenderTransformOrigin="0.5,0.5">
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FlyPending}" Value="True">
+                                                            <Setter Property="Opacity" Value="0" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
                                             <Grid.RenderTransform>
                                                 <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
                                             </Grid.RenderTransform>
@@ -308,6 +319,16 @@
                                     <DataTemplate>
                                         <!-- 左家：牌横躺，牌顶朝左；刚打出的那张歪着放 -->
                                         <Grid RenderTransformOrigin="0.5,0.5">
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FlyPending}" Value="True">
+                                                            <Setter Property="Opacity" Value="0" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
                                             <Grid.RenderTransform>
                                                 <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
                                             </Grid.RenderTransform>
@@ -349,6 +370,16 @@
                                     <DataTemplate>
                                         <!-- 右家：牌横躺，牌顶朝右；刚打出的那张歪着放 -->
                                         <Grid RenderTransformOrigin="0.5,0.5">
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FlyPending}" Value="True">
+                                                            <Setter Property="Opacity" Value="0" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
                                             <Grid.RenderTransform>
                                                 <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
                                             </Grid.RenderTransform>
@@ -411,6 +442,16 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid RenderTransformOrigin="0.5,0.5">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Opacity" Value="1" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FlyPending}" Value="True">
+                                                        <Setter Property="Opacity" Value="0" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
                                         <Grid.RenderTransform>
                                             <TransformGroup><RotateTransform Angle="{Binding DiscardAngle}" /><TranslateTransform X="{Binding DiscardOffsetX}" Y="{Binding DiscardOffsetY}" /></TransformGroup>
                                         </Grid.RenderTransform>

@@ -20,6 +20,10 @@ namespace Mahjong.App
         {
             base.OnStartup(e);
 
+            // 诊断日志目录写死为 E:\cc_study\mj：启动时预先建好，目录缺失的程序不再秒崩。
+            // （GameLog 每次写入前还会再自愈一次，双保险。）
+            GameLog.EnsureDir();
+
             // 开发者开关：离线生成语音包，不启动游戏窗口。
             //   Mahjong.App.exe --genvoice --voice-dir=E:\cc_study\mj\src\Mahjong.App\Assets\Voice
             if (e.Args.Any(a => string.Equals(a, "--genvoice", StringComparison.OrdinalIgnoreCase)))

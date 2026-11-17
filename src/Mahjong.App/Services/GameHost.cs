@@ -119,8 +119,7 @@ namespace Mahjong.App.Services
             }
             catch (Exception ex)
             {
-                try { System.IO.File.AppendAllText(@"e:\cc_study\mj\engine_err.txt",
-                    DateTime.Now.ToString() + " RunAsync exception: " + ex + "\n"); } catch { }
+                GameLog.AppendEngineError(DateTime.Now.ToString() + " RunAsync exception: " + ex + "\n");
                 // 引擎一旦异常终止就不再响应任何点击；必须让 UI 明确提示，而不是静默"点哪张都没反应"
                 var handler = OnEngineError;
                 if (handler != null)

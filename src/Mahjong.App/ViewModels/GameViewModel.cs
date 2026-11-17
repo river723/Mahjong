@@ -131,6 +131,18 @@ namespace Mahjong.App.ViewModels
         public double DiscardOffsetX { get { return 0; } }
         public double DiscardOffsetY { get { return _justDiscarded ? 14 : 0; } }
 
+        /// <summary>
+        /// 出牌飞行动画进行中：先隐藏牌河里这张「已放好」的牌（不占布局、照常排位），
+        /// 等飞行牌飞到同一个位置再移除该标记、让真正的牌现身 —— 观感就是「这张牌被扔进来」，
+        /// 而不是牌先摆在目的地、又有一个影子飞过去。
+        /// </summary>
+        private bool _flyPending;
+        public bool FlyPending
+        {
+            get { return _flyPending; }
+            set { if (_flyPending != value) { _flyPending = value; OnPropertyChanged("FlyPending"); } }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string name)
         {
@@ -312,6 +324,7 @@ namespace Mahjong.App.ViewModels
             foreach (var old in Discard) old.JustDiscarded = false;
             var vm = new TileViewModel(tile) { JustDiscarded = true };
             Discard.Add(vm);
+            vm.FlyPending = true;   // 飞行途中先隐身，等牌飞到同一位置再显现
             return vm;
         }
 
