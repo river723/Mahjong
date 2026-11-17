@@ -340,6 +340,9 @@ namespace Mahjong.App
             };
             _host.PlayerTurnStarted += (playerIndex, message) =>
             {
+                // 中央「轮到{席位}」跟着真实回合走；之前这个属性从未被赋值，
+                // 整局都显示「轮到你」，与实际出牌顺序完全对不上。
+                viewModel.CurrentPlayer = playerIndex;
                 // 只更新「轮到谁」提示，不收起声明面板：引擎在等人类声明期间若又发本事件
                 // （例如碰/杠后回到主循环开头），收起面板会让人点不到按钮而引擎仍在 await，形成死锁。
                 // 面板统一由 SubmitClaim（点击后）与 OnHideClaimButtons（结算/终局）收起。
@@ -1474,7 +1477,10 @@ namespace Mahjong.App
             SparkCanvas.Children.Clear();
             // 本场已因破产结束：点「再来一场」时重置账本，开启全新一场（四家恢复 20 币）。
             if (App.Session.Ledger.IsMatchOver) App.Session.StartNewMatch();
-            // 重开一局：新建窗口并关闭当前
+            // 重开一局：先停掉本局的音频后台线程，再建新窗口。
+            // 否则新窗口的 AudioService 会先启动 worker，而旧窗口要到 Close() 时才停，
+            // 两个 worker 同时调 PlaySound（进程级、后一次会打断前一次）会把声音切碎。
+            _host.Audio.Dispose();
             var w = new MainWindow();
             w.Show();
             Close();

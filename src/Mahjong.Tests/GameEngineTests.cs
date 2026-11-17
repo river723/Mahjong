@@ -87,7 +87,7 @@ namespace Mahjong.Tests
             // 纯 ClaimResolver 逻辑测试，不需要完整引擎运行
             var resolver = new ClaimResolver(Rules());
             var claims = new List<ClaimOption>[4];
-            // 玩家 2 胡牌，玩家 1 只能碰：胡应优先，胡者为最近家（逆时针）
+            // 玩家 2 胡牌，玩家 1 只能碰：胡应优先（唯一胡者即胜出，与座次距离无关）
             claims[0] = null;
             claims[1] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Pong, TileKind.Man1) };
             claims[2] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) };
@@ -109,16 +109,35 @@ namespace Mahjong.Tests
             Assert.Equal(ClaimType.Win, res.Type);
         }
 
+        // ==================== 座次方向：钉死「逆时针」口径 ====================
+        [Fact]
+        public void 座次轮转_是俯视逆时针_下家在右手侧()
+        {
+            // 《中国麻将竞赛规则》：行牌依座次的逆时针方向，下家在右手侧、上家在左手侧。
+            // 玩家坐屏幕下方、面朝桌心时右手边即屏幕右侧，故 下→右→上→左 = 0→2→1→3。
+            // 注意别按屏幕方位字面读「东→南→西→北」，那是顺时针，会刚好把方向搞反。
+            Assert.Equal(2, SeatOrder.NextSeat(0));   // 下 → 右
+            Assert.Equal(1, SeatOrder.NextSeat(2));   // 右 → 上
+            Assert.Equal(3, SeatOrder.NextSeat(1));   // 上 → 左
+            Assert.Equal(0, SeatOrder.NextSeat(3));   // 左 → 下
+
+            Assert.Equal(0, SeatOrder.Distance(0, 0)); // 自己
+            Assert.Equal(1, SeatOrder.Distance(0, 2)); // 下家
+            Assert.Equal(2, SeatOrder.Distance(0, 1)); // 对家
+            Assert.Equal(3, SeatOrder.Distance(0, 3)); // 上家
+        }
+
         // ==================== 一炮多响：单赢家 + 座位序优先级 ====================
-        // 口径（已确认）：多家同时能胡只算一家胡，按出牌顺序取离放铳者最近的下家；
-        // 与谁先点按钮无关，征询是三家并行收集完再统一结算的。端到端验证见 CoinRulesTests。
+        // 口径（已确认）：多家同时能胡只算一家胡，按真实座次取离放铳者最近的下家；
+        // 与谁先点按钮无关，征询是三家收集完再统一结算的。端到端验证见 CoinRulesTests。
+        // 期望值直接取 SeatOrder.NextSeat，避免测试里再写死一份轮转顺序。
 
         [Theory]
-        [InlineData(0, 1)]
-        [InlineData(1, 2)]
-        [InlineData(2, 3)]
-        [InlineData(3, 0)]
-        public void 一炮多响_三家同胡_只取离放铳者最近的下家(int discarder, int expectedWinner)
+        [InlineData(0)]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        public void 一炮多响_三家同胡_只取离放铳者最近的下家(int discarder)
         {
             var resolver = new ClaimResolver(Rules());
             var claims = new List<ClaimOption>[4];
@@ -129,7 +148,7 @@ namespace Mahjong.Tests
             }
             var res = resolver.Resolve(claims, discarder);
             Assert.NotNull(res);
-            Assert.Equal(expectedWinner, res.PlayerIndex);
+            Assert.Equal(SeatOrder.NextSeat(discarder), res.PlayerIndex);
             Assert.Equal(ClaimType.Win, res.Type);
         }
 
@@ -138,11 +157,11 @@ namespace Mahjong.Tests
         {
             var resolver = new ClaimResolver(Rules());
             var claims = new List<ClaimOption>[4];
-            claims[1] = null;   // 最近的下家放弃，不应由它占位
-            claims[2] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) };
-            claims[3] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) };
+            claims[2] = null;   // 0 号的最近下家 2（右/东，座次 0→2→1→3）放弃，不应由它占位
+            claims[1] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) }; // 对家，2 步
+            claims[3] = new List<ClaimOption> { ClaimOption.Of(ClaimType.Win, TileKind.Man1) }; // 上家，3 步
             var res = resolver.Resolve(claims, discarder: 0);
-            Assert.Equal(2, res.PlayerIndex);
+            Assert.Equal(1, res.PlayerIndex);
             Assert.Equal(ClaimType.Win, res.Type);
         }
 

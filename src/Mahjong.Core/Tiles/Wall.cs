@@ -46,7 +46,7 @@ namespace Mahjong.Core.Tiles
             _replacementEnd = _tiles.Length;
         }
 
-        /// <summary>普通摸牌（逆时针轮转的各家正常摸牌）。</summary>
+        /// <summary>普通摸牌（按 SeatOrder 的座次轮转依次摸取）。</summary>
         public Tile Draw()
         {
             if (RemainingCount <= 0) throw new InvalidOperationException("牌墙已摸完");

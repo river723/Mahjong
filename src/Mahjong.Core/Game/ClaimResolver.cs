@@ -8,7 +8,7 @@ namespace Mahjong.Core.Game
 {
     /// <summary>
     ///声明结算器：每次有人出牌后广播，收集碰/杠/胡声明并按优先级结算。
-    ///胡 > 碰/杠；多家可胡时取离点炮者最近（逆时针）一家。
+    ///胡 > 碰/杠；多家可胡时取沿行牌方向离点炮者最近的一家（座次见 SeatOrder）。
     ///无吃（推倒胡）。
     /// </summary>
     public sealed class ClaimResolver
@@ -57,8 +57,9 @@ namespace Mahjong.Core.Game
         ///优先级：胡 > 杠 > 碰。
         ///
         /// 一炮多响口径（已确认，勿改）：只产生一个赢家，不做多赢家分摊。
-        /// 多家同时能胡时，按出牌座位顺序取「离放铳者最近的下家」，即 (p - discarder + 4) % 4 最小者；
-        /// 与谁先点按钮、谁先返回无关——征询是并行收集完再统一结算的。
+        /// 多家同时能胡时，按座次距离取「离放铳者最近的下家」，即
+        /// SeatOrder.Distance(discarder, p) 最小者；与谁先点按钮、谁先返回无关——
+        /// 征询是三家收集完再统一结算的。
         /// 抢杠胡复用本结算器，此时 discarder 是杠家，同样取离杠家最近的一家。
         /// </summary>
         public ClaimResolution Resolve(IList<ClaimOption>[] claimsByPlayer, int discarder)
@@ -73,8 +74,8 @@ namespace Mahjong.Core.Game
                     claimsByPlayer[p].FirstOrDefault(o => o.Type == ClaimType.Win);
                 if (winOpt != null)
                 {
-                    // 逆时针距离：从点炮者出发走几步到 p
-                    int distance = (p - discarder + 4) % 4;
+                    // 座次距离：沿行牌方向从点炮者出发走几步到 p（1 = 最近下家）
+                    int distance = SeatOrder.Distance(discarder, p);
                     if (distance > 0 && distance < bestDistance)
                     {
                         bestDistance = distance;

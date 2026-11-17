@@ -93,8 +93,12 @@ namespace Mahjong.App.Services
 
             // 2. 创建引擎
             _engine = new GameEngine(_rules, agents, dealerIndex: 0, wallSeed: seed);
-            // UI 场景：每张牌打出后停顿 800ms，让人类看清并决定是否碰/杠/胡
-            _engine.ThinkDelayMs = 800;
+            // UI 场景：一轮结算完成后、下一家摸牌前留停顿给播报，不影响碰/杠/胡的即时征询。
+            // AI 打牌留 1300ms：带席位前缀的一条播报（「北家 五万」）约 1.16s，
+            // 停顿短于播报长度会让配音积压、靠省略前缀才勉强跟上，最终周期性丢整句。
+            // 真人自己打出的牌只停 800ms，不必让自己干等自己。
+            _engine.ThinkDelayMs = 1300;
+            _engine.HumanThinkDelayMs = 800;
 
             // 3. 连接 UI → 人类 Agent 的出牌通道（点击手牌出牌）
             viewModel.Players[0].OnTileDiscardRequested += t => HumanChooseDiscard(t);

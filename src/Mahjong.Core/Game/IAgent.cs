@@ -71,6 +71,14 @@ namespace Mahjong.Core.Game
     }
 
     /// <summary>
+    /// 标记接口：由真人操作的 Agent 实现。引擎据此选不同的「出牌后停顿」——
+    /// AI 出牌后要留足时间让配音念完，真人出牌后不必让真人干等自己。
+    /// </summary>
+    public interface IHumanControlled
+    {
+    }
+
+    /// <summary>
     ///决策代理接口：引擎 await 各玩家的决策（1 个人类 + 3 个 AI）。
     ///HumanAgent 用 TaskCompletionSource 把按钮点击接到引擎；AiPlayer 同步计算。
     /// </summary>

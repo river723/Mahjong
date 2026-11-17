@@ -525,7 +525,8 @@ namespace Mahjong.Tests
         }
 
         // ==================== 一炮多响：单赢家（已确认口径） ====================
-        // 三家同时能胡时按座位顺序取离放铳者/杠家最近的下家，只结算一个赢家。
+        // 三家同时能胡时按 SeatOrder 座次取离放铳者/杠家最近的下家，只结算一个赢家。
+        // 0 号放铳时最近下家是 2 号（右/东；逆时针座次 0→2→1→3），不是索引 +1 的 1 号。
 
         /// <summary>三家都听一万：补上一万即一条龙（123+456+789 万 + 中中中 + 东东）。</summary>
         private static void InjectThreeRobbers(GameEngine engine)
@@ -564,13 +565,13 @@ namespace Mahjong.Tests
 
             Assert.True(winOffers >= 3, "三家都应被征询到胡牌选项");
             Assert.False(result.IsDraw);
-            Assert.Equal(1, result.WinnerIndex);        // 0 号的下家，座位序最靠前
+            Assert.Equal(SeatOrder.NextSeat(0), result.WinnerIndex);   // 0 号沿逆时针座次的下家 = 2 号（右/东）
             Assert.Equal(0, result.LoserIndex);
             Assert.False(result.IsSelfDraw);
             Assert.False(result.IsRobbedKong);
             Assert.Equal(WinPatternKind.PureStraight, result.PatternKind);
             Assert.Equal(3, result.UnitPay);
-            Assert.Equal(new[] { -3, 9, -3, -3 }, result.Scores);
+            Assert.Equal(new[] { -3, -3, 9, -3 }, result.Scores);
             Assert.Equal(0, result.Scores.Sum());
         }
 
@@ -600,10 +601,10 @@ namespace Mahjong.Tests
 
             Assert.True(robOffers >= 3, "三家都应被征询抢杠胡");
             Assert.False(result.IsDraw);
-            Assert.Equal(1, result.WinnerIndex);        // 杠家 0 号的下家
+            Assert.Equal(SeatOrder.NextSeat(0), result.WinnerIndex);   // 杠家 0 号沿逆时针座次的下家 = 2 号（右/东）
             Assert.Equal(0, result.LoserIndex);
             Assert.True(result.IsRobbedKong);
-            Assert.Equal(new[] { -3, 9, -3, -3 }, result.Scores);
+            Assert.Equal(new[] { -3, -3, 9, -3 }, result.Scores);
             Assert.Equal(ClaimType.Pong, engine.Players[0].Melds[0].Type);   // 杠未成立
         }
 

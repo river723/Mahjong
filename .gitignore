@@ -35,6 +35,10 @@ events.txt
 *.png
 *.jpg
 
+# App assets are needed at build/runtime — keep them tracked
+!src/Mahjong.App/Assets/**/*.png
+!src/Mahjong.App/Assets/**/*.jpg
+
 # Capture script
 capture.ps1
 

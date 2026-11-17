@@ -403,12 +403,12 @@ namespace Mahjong.App.ViewModels
             set { SetProperty(ref _wallRemaining, value); }
         }
 
-        // 当前回合
+        // 当前回合（由 PlayerTurnStarted 事件驱动刷新，中央「轮到…」绑定它）
         private int _currentPlayer;
         public int CurrentPlayer
         {
             get { return _currentPlayer; }
-            private set
+            set
             {
                 if (_currentPlayer == value) return;
                 _currentPlayer = value;

@@ -23,7 +23,7 @@ namespace Mahjong.Core.Game
         private readonly ClaimResolver _claimResolver;
         private readonly ScoreCalculator _scoreCalculator;
 
-        /// <summary>庄家索引（v1 固定轮庄：上局赢家或流局时下家）。</summary>
+        /// <summary>庄家索引（由上层传入；UI 场景当前固定 0，本类不自动轮换）。</summary>
         private readonly int _dealerIndex;
 
         /// <summary>事件出口（UI 订阅）。</summary>
@@ -55,29 +55,38 @@ namespace Mahjong.Core.Game
         public int WallRemaining { get { return _wall.RemainingCount; } }
 
         /// <summary>
-        /// 每张牌打出后的「思考停顿」毫秒数（UI 场景用，给人类看牌/决定是否碰杠胡的时间）。
-        /// 默认 0（如测试场景不希望有延迟）。HumanAgent 被征询时会无限等待，本延迟在征询之前生效。
+        /// 每轮结算完成后、下一家摸牌前的节奏停顿毫秒数（UI 场景用，给播报留时间）。
+        /// 默认 0（测试场景不希望有延迟）。原先放在「出牌与声明征询之间」，会让
+        /// 可碰/杠/胡的按钮滞后一整句配音才出现，现已移到声明结算之后（PaceAsync）。
         /// </summary>
         public int ThinkDelayMs { get; set; } = 0;
+
+        /// <summary>
+        /// 真人出牌后的停顿毫秒数（未设置时跟随 <see cref="ThinkDelayMs"/>）。
+        /// 真人自己出完牌不需要等自己听配音，可以比 AI 短一些，避免操作发滞。
+        /// </summary>
+        public int HumanThinkDelayMs { get; set; } = -1;
 
         /// <summary>运行完整一局直到胡牌或流局（异步，无 UI 线程依赖）。</summary>
         public async Task<GameResult> RunAsync()
         {
-            // 发牌：庄家 14 张，其余 13 张
-            for (int p = 0; p < 4; p++)
+            // 发牌/抓牌：按逆时针座次从庄家起依次发（庄家 14 张，其余 13 张）。
+            // 真实麻将抓牌是每家每次 2 墩、轮 3 圈 + 庄家跳牌；本项目简化为一次性
+            // 连续发够，但「谁先拿、谁后拿」的家次必须与行牌方向一致，不能再按索引 0→3 跳着发。
+            int dealSeat = _dealerIndex;
+            for (int k = 0; k < 4; k++)
             {
-                int count = (p == _dealerIndex) ? 14 : 13;
+                int count = (dealSeat == _dealerIndex) ? 14 : 13;
                 for (int i = 0; i < count; i++)
                 {
-                    _players[p].ConcealedTiles.Add(_wall.Draw());
+                    _players[dealSeat].ConcealedTiles.Add(_wall.Draw());
                 }
+                dealSeat = SeatOrder.NextSeat(dealSeat);
             }
             Raise(GameEventType.GameStarted, _dealerIndex, null, "发牌完成");
-            Raise(GameEventType.PlayerTurnStarted, _dealerIndex, null, "轮到庄家");
 
             // 主循环
             int current = _dealerIndex;
-            bool firstTurn = true;
             // 碰/杠之后本轮不再摸牌（碰后直接出牌、杠的补牌由 ApplyPongOrKong 内部处理）。
             // 若这里重复摸牌，手牌会变成 3n 张而非胡牌要求的 3n+2，导致碰过牌就再也判不出胡。
             bool skipDraw = false;
@@ -85,10 +94,9 @@ namespace Mahjong.Core.Game
             {
                 PlayerState player = _players[current];
                 IAgent agent = _agents[current];
-                // 每轮开始广播：UI 据此刷新「轮到谁」提示，并收起上一轮的声明面板
+                // 每轮开始只广播一次：UI 据此刷新中央「轮到谁」与回合提示。
+                // 开局时本循环紧接着就执行，因此 GameStarted 之后不能再单独补播一次。
                 Raise(GameEventType.PlayerTurnStarted, current, null, current == 0 ? "轮到你出牌" : "等待各家出牌");
-                bool afterDraw = !firstTurn || current != _dealerIndex || true; // 庄家首轮也已摸过（发牌即含）
-                firstTurn = false;
 
                 // —— 摸牌（庄家首轮、碰/杠后本轮例外）——
                 Tile drawn = null;
@@ -134,12 +142,10 @@ namespace Mahjong.Core.Game
                 Raise(GameEventType.TileDiscarded, current, discard, null);
                 _turnCount++;
 
-                // 出牌后稍作停顿，让人类看清这张牌、决定是否碰/杠/胡。
-                // 停顿在「声明征询」之前：若人类可碰/杠/胡，征询面板会在停顿后出现。
-                if (ThinkDelayMs > 0)
-                    await Task.Delay(ThinkDelayMs);
-
                 // —— 声明征询（其余三家）——
+                // 出牌与征询之间不再停顿：牌一落牌河，可碰/杠/胡的按钮就该出现。
+                // 给播报留的节奏停顿挪到「本轮结算之后、下一家摸牌之前」（PaceAsync），
+                // 否则玩家会看到牌已经落下，按钮却要等 1.3 秒才弹出来。
                 var resolution = await ResolveClaimsAsync(current, discard);
                 if (resolution != null)
                 {
@@ -153,15 +159,35 @@ namespace Mahjong.Core.Game
                         int next = await ApplyPongOrKong(resolution, discard);
                         // -1 = 杠上开花已胡、-2 = 杠补牌时流局，Result 均已结算完毕
                         if (next < 0) return Result;
+                        // ClaimResolved / 杠后补牌事件此时已播完，再停顿让播报跟上，
+                        // 然后由碰/杠者本人出牌（本轮不再摸牌）。
+                        await PaceAsync(current);
                         current = next;
-                        skipDraw = true;  // 碰/杠者直接出牌（杠已在内部补过牌），本轮不再摸牌
+                        skipDraw = true;
                         continue;
                     }
                 }
 
-                // —— 轮转下家 ——
-                current = (current + 1) % 4;
+                // 本轮所有显示（出牌、声明结算）都已完成，再留给播报的节奏停顿。
+                // 真人自己打出的牌用更短的停顿，不必让自己干等自己。
+                await PaceAsync(current);
+
+                // —— 轮转下家：沿逆时针座次到右手侧相邻一家，见 SeatOrder ——
+                current = SeatOrder.NextSeat(current);
             }
+        }
+
+        /// <summary>
+        /// 一轮结算完成后为播报留的节奏停顿。
+        /// 放在声明结算之后，让「出牌 → 可碰/杠/胡」零延迟，同时保证下一张牌
+        /// 不会盖掉上一句配音。测试场景 ThinkDelayMs=0 时完全不等待。
+        /// </summary>
+        private Task PaceAsync(int discarder)
+        {
+            int delay = (_agents[discarder] is IHumanControlled)
+                ? (HumanThinkDelayMs >= 0 ? HumanThinkDelayMs : ThinkDelayMs)
+                : ThinkDelayMs;
+            return delay > 0 ? Task.Delay(delay) : Task.CompletedTask;
         }
 
         private int _turnCount;
@@ -310,9 +336,11 @@ namespace Mahjong.Core.Game
             if (!_rules.AllowRobbingKong || tile == null) return -1;
             var claims = new List<ClaimOption>[4];
             bool any = false;
-            for (int p = 0; p < 4; p++)
+            // 按真实座次从杠家的下家开始征询，而不是按索引 0→3。
+            int p = kongPlayer;
+            for (int step = 0; step < 3; step++)
             {
-                if (p == kongPlayer) continue;
+                p = SeatOrder.NextSeat(p);
                 int[] counts = HandCountsOf(_players[p]);
                 counts[(int)tile.Kind]++;
                 if (!WinChecker.CanWinFull(counts, _rules)) continue;
@@ -399,9 +427,12 @@ namespace Mahjong.Core.Game
         {
             var claims = new List<ClaimOption>[4];
             bool any = false;
-            for (int p = 0; p < 4; p++)
+            // 按真实座次从打出者的下家开始征询，而不是按索引 0→3。
+            // 结算仍由 ClaimResolver 统一按距离判定，与征询先后无关。
+            int p = discarder;
+            for (int step = 0; step < 3; step++)
             {
-                if (p == discarder) continue;
+                p = SeatOrder.NextSeat(p);
                 int[] handCounts = HandCountsOf(_players[p]);
                 var options = _claimResolver.GetOptions(_players[p], discarded, handCounts);
                 if (options.Count > 0)

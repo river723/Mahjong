@@ -9,7 +9,7 @@ namespace Mahjong.App.Services
     /// <summary>
     /// 人类玩家 Agent：使用 TaskCompletionSource 让 MainWindow 的按钮点击接入引擎决策流程。
     /// </summary>
-    public sealed class HumanAgent : IAgent
+    public sealed class HumanAgent : IAgent, IHumanControlled
     {
         private readonly int _playerIndex;
         private readonly GameHost _host;
