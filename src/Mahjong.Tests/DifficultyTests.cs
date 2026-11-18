@@ -143,5 +143,59 @@ namespace Mahjong.Tests
             ClaimOption got = await ai.ChooseClaim(ctx);
             Assert.True(got == null || got.Type == ClaimType.Pong);
         }
+
+        // ===== 「设置」里的起始难度 =====
+
+        [Fact]
+        public void 起始档位可直接设为大师_且不会被自动升档拉低()
+        {
+            DifficultyState.Reset();
+            DifficultyState.ApplyStartLevel(2, autoLevelUp: true);
+            Assert.Equal(2, DifficultyState.Level);
+            Assert.False(DifficultyState.IsFixed);
+
+            // ComputeLevel 在头几局只会算出 0/1，旧逻辑不能把起始档位降回去
+            Assert.Null(DifficultyState.RecordResult(false));
+            Assert.Equal(2, DifficultyState.Level);
+        }
+
+        [Fact]
+        public void 关闭自动升档后_固定起始档位且清空旧进度()
+        {
+            DifficultyState.Reset();
+            DifficultyState.RecordResult(true);
+            DifficultyState.ApplyStartLevel(1, autoLevelUp: false);
+
+            Assert.Equal(1, DifficultyState.Level);
+            Assert.True(DifficultyState.IsFixed);
+            Assert.Equal(0, DifficultyState.RoundsPlayed);
+            Assert.Equal(0, DifficultyState.WinStreak);
+
+            for (int i = 0; i < 8; i++) Assert.Null(DifficultyState.RecordResult(true));
+            Assert.Equal(1, DifficultyState.Level);
+            Assert.Equal(8, DifficultyState.RoundsPlayed);   // 局数照记，只是不再升档
+        }
+
+        [Fact]
+        public void 启动时播种档位_不改固定标志与会话进度()
+        {
+            DifficultyState.Reset();
+            DifficultyState.RecordResult(true);
+            DifficultyState.SetStartLevel(1);
+            Assert.Equal(1, DifficultyState.Level);
+            Assert.Equal(1, DifficultyState.WinStreak);
+            Assert.Equal(1, DifficultyState.RoundsPlayed);
+            Assert.False(DifficultyState.IsFixed);
+        }
+
+        [Theory]
+        [InlineData(-5, 0)]
+        [InlineData(99, 2)]
+        public void 起始档位越界会收敛(int input, int expected)
+        {
+            DifficultyState.Reset();
+            DifficultyState.ApplyStartLevel(input, autoLevelUp: true);
+            Assert.Equal(expected, DifficultyState.Level);
+        }
     }
 }

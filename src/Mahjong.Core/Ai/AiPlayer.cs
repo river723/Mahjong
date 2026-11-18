@@ -29,8 +29,18 @@ namespace Mahjong.Core.Ai
         private readonly int _claimPercent;
         private readonly bool _preferMoreWaits;
 
+        private sealed class Candidate
+        {
+            public Tile Tile;
+            public int Kind;
+            public int Shanten;
+            public int UsefulKinds;
+            public int UsefulTiles;
+            public int Remaining;
+        }
+
         /// <param name="claimPercent">碰/杠的接受概率（0-100），由难度档位给定。</param>
-        /// <param name="preferMoreWaits">较真档之上再优先选进张最多的牌（最高难度）。</param>
+        /// <param name="preferMoreWaits">较真档之上再优先选进张种类最多的牌（最高难度）。</param>
         public AiPlayer(int index, AiProfile profile, int seed, RuleConfig rules,
             int claimPercent = 50, bool preferMoreWaits = false)
         {
@@ -43,84 +53,84 @@ namespace Mahjong.Core.Ai
             _preferMoreWaits = preferMoreWaits;
         }
 
+        /// <summary>
+        /// 出牌：先按向听数最小筛出候选，再在同级候选里比较进张余量。
+        /// 旧实现只在「已经听牌」时才挑牌，没听就打手牌第一张——等于把起手牌
+        /// 按发牌顺序打光，永远不会向听，实测四家胡牌率不到 10%。
+        /// </summary>
         public Task<Tile> ChooseDiscard(DecisionContext context)
         {
             var hand = context.Hand;
             if (hand == null || hand.Count == 0) return Task.FromResult<Tile>(null);
 
             // 每次决策用公开信息重建记牌器：自己手牌 + 牌河 + 四家副露。
-            // 之前这里只有注释没有代码，导致较真档的「安全牌」判断恒为 4 张、形同虚设。
             if (context != null) _memory.Rebuild(hand, context.Discards, context.AllMelds);
 
-            Tile chosen;
-            switch (_profile.Name)
-            {
-                case "简单":
-                    chosen = hand[0];
-                    break;
-                case "普通":
-                    chosen = ChooseNormalDiscard(hand);
-                    break;
-                case "较真":
-                    chosen = ChooseHardDiscard(hand);
-                    break;
-                default:
-                    chosen = hand[0];
-                    break;
-            }
-            return Task.FromResult(chosen);
-        }
+            // 简单档保留旧行为（打第一张），供对照测试用。
+            if (_profile.Name == "简单") return Task.FromResult(hand[0]);
 
-        /// <summary>普通档：优先打不破坏听牌的牌，否则打第一张。</summary>
-        private Tile ChooseNormalDiscard(IList<Tile> hand)
-        {
-            // 构造 13 张手牌计数（含当前手牌中的 13 张，不含摸牌——摸牌后选出打哪张，剩下的 13 张就是新手牌）
+            int fixedMelds = context.Melds != null ? context.Melds.Count : 0;
             int[] counts = new int[34];
             foreach (var t in hand) counts[(int)t.Kind]++;
 
+            int[] outside = new int[34];
+            for (int k = 0; k < 34; k++) outside[k] = _memory.Remaining((TileKind)k);
+
+            // 同款牌只评估一次，打哪张都一样。
+            var candidates = new List<Candidate>();
+            var seen = new bool[34];
             foreach (var t in hand)
             {
-                int[] temp = (int[])counts.Clone();
-                temp[(int)t.Kind]--; // 打掉 t
-                var waits = _eval.GetWaits(temp);
-                if (waits.Count > 0) return t; // 打掉 t 后仍能听牌
+                int k = (int)t.Kind;
+                if (seen[k]) continue;
+                seen[k] = true;
+
+                counts[k]--;
+                int shanten = _eval.GetShanten(counts, fixedMelds);
+                counts[k]++;
+                candidates.Add(new Candidate { Tile = t, Kind = k, Shanten = shanten });
             }
-            return hand[0]; // 兜底
-        }
 
-        /// <summary>
-        /// 较真档：在所有「打掉后仍能听牌」的候选里挑一张。
-        /// 默认优先打外面剩余最少的牌（越接近绝张越不容易点炮）；
-        /// 最高难度（preferMoreWaits）反过来先比进张种类数，再比安全度。
-        /// 说明：旧实现写的是「剩余最多最安全」，方向反了，且记牌器没接线恒为 4，实际等于普通档。
-        /// </summary>
-        private Tile ChooseHardDiscard(IList<Tile> hand)
-        {
-            int[] counts = new int[34];
-            foreach (var t in hand) counts[(int)t.Kind]++;
+            if (candidates.Count == 0) return Task.FromResult(hand[0]);
+            int bestShanten = candidates.Min(c => c.Shanten);
 
-            Tile best = null;
-            int bestWaits = -1;
-            int bestRemaining = int.MaxValue;
-
-            foreach (var t in hand)
+            // 只对最低向听的候选算进张，避免 14×34 次无谓搜索。
+            foreach (var c in candidates)
             {
-                int[] temp = (int[])counts.Clone();
-                temp[(int)t.Kind]--;
-                int waitCount = _eval.GetWaits(temp).Count;
-                if (waitCount == 0) continue;
-
-                int rem = _memory.Remaining(t.Kind);
-                bool better = _preferMoreWaits
-                    ? (waitCount > bestWaits) || (waitCount == bestWaits && rem < bestRemaining)
-                    : (rem < bestRemaining) || (rem == bestRemaining && waitCount > bestWaits);
-                if (!better) continue;
-
-                best = t;
-                bestWaits = waitCount;
-                bestRemaining = rem;
+                if (c.Shanten != bestShanten) continue;
+                counts[c.Kind]--;
+                outside[c.Kind]++; // 这张马上打出去，回到「外面」
+                _eval.MeasureUsefulTiles(counts, fixedMelds, outside,
+                    out c.UsefulKinds, out c.UsefulTiles);
+                c.Remaining = outside[c.Kind];
+                outside[c.Kind]--;
+                counts[c.Kind]++;
             }
-            return best ?? ChooseNormalDiscard(hand);
+
+            Candidate best = null;
+            long bestScore = long.MinValue;
+            foreach (var c in candidates)
+            {
+                if (c.Shanten != bestShanten) continue;
+
+                // 三档差异：普通纯效率；较真在同效率时偏向安全牌（外面剩得少的）；
+                // 大师先比进张种类数，再比进张张数与安全。
+                long score;
+                if (_preferMoreWaits)
+                    score = (long)c.UsefulKinds * 1000 + c.UsefulTiles * 4 + (4 - c.Remaining);
+                else if (_profile.Name == "较真")
+                    score = (long)c.UsefulTiles * 4 + (4 - c.Remaining);
+                else
+                    score = (long)c.UsefulTiles * 10;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = c;
+                }
+            }
+
+            return Task.FromResult(best != null ? best.Tile : hand[0]);
         }
 
         public Task<ClaimOption> ChooseClaim(DecisionContext context)

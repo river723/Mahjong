@@ -54,10 +54,33 @@ namespace Mahjong.Core.Ai
         /// <summary>调试/录屏用：固定档位，跳过自动升档。</summary>
         public static void SetFixedLevel(int level)
         {
-            if (level < 0) level = 0;
-            if (level > MaxLevel) level = MaxLevel;
-            Level = level;
+            Level = ClampLevel(level);
             IsFixed = true;
+        }
+
+        /// <summary>
+        /// 「设置」里的开场档位：清空本会话的连胜 / 局数进度，从指定档位重新起步。
+        /// 改了起始难度就等于换了一条难度曲线，旧的连胜不该继续算数。
+        /// autoLevelUp=false 时固定在该档位（与 --difficulty 行为一致），不再自动升档。
+        /// </summary>
+        public static void ApplyStartLevel(int level, bool autoLevelUp)
+        {
+            Reset();
+            Level = ClampLevel(level);
+            IsFixed = !autoLevelUp;
+        }
+
+        /// <summary>
+        /// 只设置当前档位，不动固定标志与会话进度。
+        /// 进程启动时加载「起始难度」用：此时还没有任何对局进度可清。
+        /// </summary>
+        public static void SetStartLevel(int level) { Level = ClampLevel(level); }
+
+        private static int ClampLevel(int level)
+        {
+            if (level < 0) return 0;
+            if (level > MaxLevel) return MaxLevel;
+            return level;
         }
 
         /// <summary>测试用：清空会话进度。</summary>

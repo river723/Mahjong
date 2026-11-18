@@ -5,7 +5,7 @@
 产出 34 种牌面 + 1 张牌背 + 1 张总览图，均为带 alpha 的 PNG，
 供 Mahjong.App 作为 Resource 直接使用。
 
-真实感要点（对照欢乐麻将 / 传统手雕麻将工艺）：
+真实感要点（对照家人麻将 / 传统手雕麻将工艺）：
   1. 白面 + 墨绿背壳双层结构，侧面可见分层线与倒角
   2. 象牙白材质含高频细噪点 + 低频斑驳，不是纯色渐变
   3. 倒角高光带方向性（左上亮、右下暗），顶部弧形镜面柔光
@@ -692,7 +692,7 @@ def make_ui_preview(tiles, back):
 
     d = ImageDraw.Draw(canvas)
     label = ImageFont.truetype(FONT_PATH, 20)
-    d.text((PW / 2, 258), "欢乐麻将 · 贴图化效果预览", font=label,
+    d.text((PW / 2, 258), "家人麻将 · 贴图化效果预览", font=label,
            fill=(255, 231, 160, 230), anchor="mm")
     d.text((PW / 2, 655), "静态示意图（非实机截图） · 贴图由 tools/gen_tiles.py 生成",
            font=ImageFont.truetype(FONT_PATH, 15), fill=(210, 225, 210, 170), anchor="mm")

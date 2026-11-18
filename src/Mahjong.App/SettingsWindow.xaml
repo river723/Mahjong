@@ -1,0 +1,230 @@
+<Window x:Class="Mahjong.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="设置" Icon="/Assets/FamilyMahjong.ico" Width="780" Height="660" MinWidth="680" MinHeight="560"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="#072E1A" FontFamily="Microsoft YaHei">
+
+    <Window.Resources>
+        <!-- 设置窗口专用按钮：比牌桌上的动作按钮小一号，但同样圆角 + 金边 + 按压反馈 -->
+        <Style x:Key="SettingsButton" TargetType="Button">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="#FFFFF6DC" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="MinWidth" Value="92" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" CornerRadius="12"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="#88FFE9A8" BorderThickness="1.5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderThickness" Value="3" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="RenderTransform">
+                                    <Setter.Value><ScaleTransform ScaleX="0.96" ScaleY="0.96" /></Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SmallButton" TargetType="Button" BasedOn="{StaticResource SettingsButton}">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="MinWidth" Value="56" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+        </Style>
+
+        <Style x:Key="SettingsCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#FFFFF4D6" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="Margin" Value="0,3" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="SettingsRadio" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#FFFFF4D6" />
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Margin" Value="0,0,24,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="21" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="#FFFFE9A8" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+
+        <Style x:Key="SectionNote" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="#C8E8D2" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+
+        <!-- 三组设置共用一张深绿卡片 -->
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="Background" Value="#0A351F" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Border CornerRadius="22" Background="#0E4228"
+                BorderBrush="{StaticResource TableFrameBrush}" BorderThickness="4">
+            <Grid Margin="22,12,22,14">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 标题 -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                    <TextBlock Text="游戏设置" FontSize="30" FontWeight="Bold"
+                               Foreground="{StaticResource TitleGoldBrush}" />
+                    <TextBlock Text="声音  ·  初始金币  ·  起始难度" FontSize="15"
+                               Foreground="#BFE6CD" Margin="2,2,0,0" />
+                </StackPanel>
+
+                <!-- 两列排版：三组设置一屏看全，窗口被拉小时仍可滚动 -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- ======== 左列：声音 + 初始金币 ======== -->
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+
+                            <Border Style="{StaticResource SectionCard}">
+                                <StackPanel>
+                                    <TextBlock Text="一、声音" Style="{StaticResource SectionTitle}" />
+                                    <CheckBox x:Name="VoiceBox" Content="配音（念牌面与动作词）"
+                                              Style="{StaticResource SettingsCheckBox}" />
+                                    <CheckBox x:Name="SfxBox" Content="音效（拍牌、提示音）"
+                                              Style="{StaticResource SettingsCheckBox}" />
+                                    <CheckBox x:Name="SeatBox" Content="带席位前缀（北家、东家…）"
+                                              Style="{StaticResource SettingsCheckBox}" />
+                                    <CheckBox x:Name="OwnBox" Content="自己出牌时也念牌面"
+                                              Style="{StaticResource SettingsCheckBox}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,2">
+                                        <Button x:Name="PreviewButton" Content="试听一下"
+                                                Style="{StaticResource SmallButton}" Background="#FF1F6FC8"
+                                                Margin="0" Click="Preview_Click" />
+                                        <TextBlock Text="按当前勾选试播" FontSize="14"
+                                                   Foreground="#C8E8D2" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SectionCard}">
+                                <StackPanel>
+                                    <TextBlock Text="二、每人的初始金币" Style="{StaticResource SectionTitle}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="每人" FontSize="19" Foreground="#FFFFF4D6"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox x:Name="CoinsBox" Width="100" Height="42" Margin="10,0,10,0"
+                                                 FontSize="24" FontWeight="Bold" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" MaxLength="4"
+                                                 Foreground="#1C3F2B" Background="#FFFFF6DC"
+                                                 BorderBrush="#FFD9A93B" BorderThickness="2"
+                                                 PreviewTextInput="DigitsOnly" />
+                                        <TextBlock x:Name="CoinsRange" Text="枚（5 ~ 999）" FontSize="18"
+                                                   Foreground="#FFFFF4D6" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <TextBlock Text="快捷：" FontSize="17" Foreground="#C8E8D2"
+                                                   VerticalAlignment="Center" />
+                                        <Button Content="10" Tag="10" Style="{StaticResource SmallButton}"
+                                                Background="#FF27603C" Click="Preset_Click" />
+                                        <Button Content="20" Tag="20" Style="{StaticResource SmallButton}"
+                                                Background="#FF27603C" Click="Preset_Click" />
+                                        <Button Content="50" Tag="50" Style="{StaticResource SmallButton}"
+                                                Background="#FF27603C" Click="Preset_Click" />
+                                        <Button Content="100" Tag="100" Style="{StaticResource SmallButton}"
+                                                Background="#FF27603C" Click="Preset_Click" />
+                                    </StackPanel>
+                                    <TextBlock Text="四家同额；有人不足即整场结束。改动在之后新开的一场生效。"
+                                               Style="{StaticResource SectionNote}" />
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+
+                        <!-- ======== 右列：开始难度 + 生效说明 ======== -->
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+
+                            <Border Style="{StaticResource SectionCard}">
+                                <StackPanel>
+                                    <TextBlock Text="三、开始难度" Style="{StaticResource SectionTitle}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <RadioButton x:Name="Diff0" Content="普通" GroupName="StartDifficulty"
+                                                     Style="{StaticResource SettingsRadio}" Checked="Difficulty_Changed" />
+                                        <RadioButton x:Name="Diff1" Content="较真" GroupName="StartDifficulty"
+                                                     Style="{StaticResource SettingsRadio}" Checked="Difficulty_Changed" />
+                                        <RadioButton x:Name="Diff2" Content="大师" GroupName="StartDifficulty"
+                                                     Style="{StaticResource SettingsRadio}" Checked="Difficulty_Changed" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="DiffHint" Text="" FontSize="16" Foreground="#FFFFD980"
+                                               TextWrapping="Wrap" Margin="2,10,0,6" />
+                                    <CheckBox x:Name="AutoLevelBox" Content="自动升档（连胜/局数够了会变强）"
+                                              Style="{StaticResource SettingsCheckBox}" />
+                                    <TextBlock x:Name="DifficultyLockHint" Visibility="Collapsed"
+                                               Text="当前难度由启动参数固定，此处改动只会在下次正常启动时生效。"
+                                               Style="{StaticResource SectionNote}" Foreground="#FFFFD980" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="#0A351F" CornerRadius="12" Padding="14,10">
+                                <StackPanel>
+                                    <TextBlock Text="生效说明" FontSize="18" FontWeight="Bold"
+                                               Foreground="#FFFFE9A8" Margin="0,0,0,6" />
+                                    <TextBlock Text="声音设置立即生效；初始金币与难度在新的一场生效，点「保存并开新的一场」可立即启用。"
+                                               FontSize="14" Foreground="#FFFFD980" TextWrapping="Wrap" />
+                                    <TextBlock Text="设置窗口打开期间对局仍在继续，结算后调整更从容。"
+                                               FontSize="13" Foreground="#A9CFB8" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+
+                <!-- 底部按钮 -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,8,0">
+                    <Button Content="恢复默认" Style="{StaticResource SettingsButton}"
+                            Background="#FF3A4B43" Margin="0" Click="Reset_Click" />
+                    <Button Content="取消" Style="{StaticResource SettingsButton}"
+                            Background="#FF7C828C" IsCancel="True" Click="Cancel_Click" />
+                    <Button Content="保存" Style="{StaticResource SettingsButton}"
+                            Background="{StaticResource BtnPongBrush}" IsDefault="True" Click="Save_Click" />
+                    <Button Content="保存并开新的一场" Style="{StaticResource SettingsButton}"
+                            Background="{StaticResource BtnWinBrush}" Click="SaveAndRestart_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

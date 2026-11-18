@@ -6,12 +6,18 @@
     <LangVersion>7.3</LangVersion>
     <RootNamespace>Mahjong.App</RootNamespace>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\FamilyMahjong.ico</ApplicationIcon>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Mahjong.Core\Mahjong.Core.csproj" />
     <PackageReference Include="System.Speech" Version="6.0.0" />
+  </ItemGroup>
+
+  <!-- 程序图标（含 16/32/48/64/128/256 多尺寸，由 tools/gen_icon.ps1 生成） -->
+  <ItemGroup>
+    <Resource Include="Assets\FamilyMahjong.ico" />
   </ItemGroup>
 
   <!-- 离线预渲染的牌面贴图（由 tools/gen_tiles.py 生成，34 正面 + 1 牌背） -->

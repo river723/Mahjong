@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Windows;
 using Mahjong.App.Services;
+using Mahjong.Core.Ai;
 using Mahjong.Core.Game;
 using Mahjong.Core.Tiles;
 
@@ -46,6 +47,13 @@ namespace Mahjong.App
                 Shutdown();
                 return;
             }
+
+            // 「设置」里的起始难度只在进程启动时播种一次。每局都是 new MainWindow()，
+            // 若在窗口构造里反复调用，会把结算后自动升档得到的档位冲掉。
+            // 命令行 --difficulty / MJ_DIFFICULTY 仍在 MainWindow 构造里覆盖，调试参数优先。
+            var settings = GameSettings.Current;
+            if (settings.AutoLevelUp) DifficultyState.SetStartLevel(settings.StartDifficulty);
+            else DifficultyState.SetFixedLevel(settings.StartDifficulty);
 
             var window = new MainWindow();
             window.Show();

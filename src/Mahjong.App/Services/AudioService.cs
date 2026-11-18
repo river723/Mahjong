@@ -220,6 +220,18 @@ namespace Mahjong.App.Services
             Enqueue(clips, interruptible: false);
         }
 
+        /// <summary>
+        /// 开局码牌：连着几声轻「嗒」，配合牌墙逐墩落位。
+        /// 整组一次性排队，不逐墩 Enqueue——后者会在后台 worker 里积压，动画播完了还在响。
+        /// 总时长约 1 秒，正好盖住码牌阶段；玩家中途跳过动画时 GameStarted 会 Clear 掉剩余组。
+        /// </summary>
+        public void OpeningStack()
+        {
+            var clips = new List<Clip>();
+            for (int i = 0; i < 8; i++) AddSfx(clips, i % 3 == 0 ? "discard" : "draw");
+            Enqueue(clips, interruptible: false);
+        }
+
         /// <summary>开局播报。</summary>
         public void Deal()
         {

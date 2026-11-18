@@ -4,7 +4,7 @@
                     xmlns:controls="clr-namespace:Mahjong.App.Controls">
 
     <!-- ============================================================
-         腾讯欢乐麻将主题（Happy Mahjong Theme）
+         家人麻将主题（Happy Mahjong Theme）
          保留原 ElderTheme 的全部资源 Key 名称，仅替换数值；
          TileControl / MainWindow 通过 StaticResource 引用这些 Key。
          ============================================================ -->

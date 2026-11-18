@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
@@ -62,6 +63,26 @@ namespace Mahjong.App
         private const double TableBaseWidth = 943.6;
         private const double TableBaseHeight = 720.4;
 
+        // ===== 开局码牌动画 =====
+        // 引擎要等动画播完（或点一下跳过）才启动：它跑起来约 1 秒就会出第一张牌，
+        // 并行的话牌墙还没码完，牌河里已经冒出一张牌了。
+        private const int StacksPerSide = 17;   // 真实麻将每人面前码 17 墩；竖边 16 墩与横边端墩压叠成角，实际绘制 66 墩
+        private const int StackStartMs = 120;
+        private const int StackStepMs = 11;
+        private const int StackFlyMs = 240;
+        private bool _gameLaunched;
+        private bool _introFinished;
+        private bool _introHold;
+        private System.Windows.Threading.DispatcherTimer _introTimer;
+
+        /// <summary>一墩牌的落点与所属边，供「开门搬牌」时把对应两墩推出去。</summary>
+        private sealed class IntroStack
+        {
+            public Canvas Element;
+            public int Side;      // 0=北 1=东 2=南 3=西
+            public int Index;
+        }
+
         public MainWindow()
         {
             InitializeComponent();
@@ -84,18 +105,22 @@ namespace Mahjong.App
             _host = new GameHost(rules, seed, viewModel, demo, DifficultyState.Level);
 
             // 标题展示种子与难度：种子用来复现牌局（--seed <数字> / MJ_SEED=<数字>），难度是本局 AI 档位
-            Title = string.Format("欢乐麻将 — 种子 {0} · 难度 {1} Lv{2}{3}",
+            Title = string.Format("家人麻将 — 种子 {0} · 难度 {1} Lv{2}{3}",
                 seed, DifficultyState.LevelName(DifficultyState.Level), DifficultyState.Level,
                 (seedFixed || DifficultyState.IsFixed) ? "（固定）" : "");
 
             // 将 viewModel 设置为 DataContext
             this.DataContext = viewModel;
 
-            // 配音开关：读出上次保存的设置；关窗时停掉音频后台线程
-            VoiceToggle.IsChecked = _host.Audio.VoiceEnabled;
-            SfxToggle.IsChecked = _host.Audio.SoundEnabled;
-            SeatToggle.IsChecked = _host.Audio.AnnounceSeat;
-            Closed += (s, args) => _host.Audio.Dispose();
+            // 关窗时停掉音频后台线程；声音设置统一由「设置」窗口管理
+            Closed += (s, args) => { if (_introTimer != null) _introTimer.Stop(); _host.Audio.Dispose(); };
+            // F2：键盘等价入口，鼠标不方便时也能随时打开设置
+            KeyDown += (s, args) =>
+            {
+                if (args.Key != Key.F2) return;
+                args.Handled = true;
+                SettingsButton_Click(this, new RoutedEventArgs());
+            };
 
             // 调试用视觉校验钩子（正常启动不生效）：设环境变量 MJ_FAKE_SOUTH_MELD，
             // 「pong」= 只塞一组碰（常见情形），「1」= 碰 + 明杠（最宽情形 13+7），
@@ -404,8 +429,9 @@ namespace Mahjong.App
             TableFrame.SizeChanged += (s, e) => UpdateTableScale();
             Loaded += (s, e) => UpdateTableScale();
 
-            // 启动游戏（异步）
-            _ = _host.StartAsync();
+            // 启动游戏（异步）：先播「码牌 → 掷骰 → 开门搬牌」的开场动画，
+            // 播完或被点一下跳过之后，才由 FinishOpening → LaunchGame 真正开局。
+            StartOpeningSequence(preview);
         }
 
         /// <summary>
@@ -1528,8 +1554,19 @@ namespace Mahjong.App
 
         private void WinContinueButton_Click(object sender, RoutedEventArgs e)
         {
-            // 收掉特效层再重开一局：新窗口是新实例，这里主要是别让上一轮的粒子和
-            // Forever 动画（光芒旋转/标题呼吸）继续挂在已关闭的窗口上
+            // 本场已因破产结束：点「再来一场」时重置账本，按设置里的初始金币重新发牌。
+            RestartRound(App.Session.Ledger.IsMatchOver);
+        }
+
+        /// <summary>
+        /// 关掉当前窗口、开一局新的。结算面板的「再来一局」和设置里的
+        /// 「保存并开新的一场」共用这条路径，避免两处各自维护窗口状态继承。
+        /// startNewMatch=true 时账本归零（四家恢复当前设置的初始金币）。
+        /// </summary>
+        private void RestartRound(bool startNewMatch)
+        {
+            // 收掉特效层：新窗口是新实例，别让上一轮的粒子和 Forever 动画
+            // （光芒旋转/标题呼吸）继续挂在已关闭的窗口上
             WinOverlay.Visibility = Visibility.Collapsed;
             StopConfettiTrickle();
             StopConfettiSweep();
@@ -1537,8 +1574,9 @@ namespace Mahjong.App
             RayCanvas.Children.Clear();
             RingCanvas.Children.Clear();
             SparkCanvas.Children.Clear();
-            // 本场已因破产结束：点「再来一场」时重置账本，开启全新一场（四家恢复 20 币）。
-            if (App.Session.Ledger.IsMatchOver) App.Session.StartNewMatch();
+
+            if (startNewMatch) App.Session.StartNewMatch();
+
             // 重开一局：先停掉本局的音频后台线程，再建新窗口。
             // 否则新窗口的 AudioService 会先启动 worker，而旧窗口要到 Close() 时才停，
             // 两个 worker 同时调 PlaySound（进程级、后一次会打断前一次）会把声音切碎。
@@ -1557,6 +1595,411 @@ namespace Mahjong.App
             }
             w.Show();
             Close();
+        }
+
+        /// <summary>
+        /// 「设置」入口。声音由设置窗口直接写到 AudioService（即时生效）；
+        /// 初始金币与难度在保存后同步到会话规则/难度状态，必要时立刻开新的一场。
+        /// 命令行 --difficulty 固定档位时优先级更高，只保存配置、不改本会话档位。
+        /// </summary>
+        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_host == null || _host.Audio == null) return;
+
+            bool locked = ResolveFixedLevel().HasValue;
+            var dlg = new SettingsWindow(_host.Audio, locked) { Owner = this };
+            bool? saved = dlg.ShowDialog();
+
+            // 取消时设置窗口已自行回滚「试听」的临时改动，这里不用再处理声音。
+            if (saved != true) return;
+
+            if (dlg.DifficultyChanged && !locked)
+            {
+                var s = GameSettings.Current;
+                // 改了起始难度 = 换一条难度曲线：连胜/局数进度清零，下一局从新档位开始。
+                DifficultyState.ApplyStartLevel(s.StartDifficulty, s.AutoLevelUp);
+            }
+            if (dlg.RequestRestart) RestartRound(true);
+        }
+
+        // ============================================================
+        // 开局动画：四面牌墙逐墩码起 → 掷骰 → 开门搬牌 → 揭幕发牌
+        //
+        // 每局都是新的 MainWindow（金币账本挂在 App.Session 上），所以把动画挂在
+        // 构造末尾即可，程序启动和「再来一局」都会播。引擎延后到动画结束才启动，
+        // 否则庄家约 1 秒就出第一张牌，牌河会和还没码完的牌墙撞在一起。
+        // ============================================================
+
+        /// <summary>构造末尾调用：决定直接开局，还是先播开场动画。</summary>
+        private void StartOpeningSequence(string preview)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            bool noIntro = args.Any(a => string.Equals(a, "--no-intro", StringComparison.OrdinalIgnoreCase))
+                || Environment.GetEnvironmentVariable("MJ_NO_INTRO") == "1";
+            bool dump = args.Any(a => string.Equals(a, "--dump-layout", StringComparison.OrdinalIgnoreCase));
+            _introHold = args.Any(a => string.Equals(a, "--intro-hold", StringComparison.OrdinalIgnoreCase));
+            // 结算预览 / 布局自检不该被开场动画挡住；--no-intro 给调试和老机器用
+            if (noIntro || dump || !string.IsNullOrEmpty(preview)) { LaunchGame(); return; }
+
+            ContentRendered += (s, e) => PlayOpeningAnimation();
+            KeyDown += (s, e) => SkipOpening();
+        }
+
+        /// <summary>真正启动引擎，只调一次（跳过动画与收尾定时器可能同时到达）。</summary>
+        private void LaunchGame()
+        {
+            if (_gameLaunched) return;
+            _gameLaunched = true;
+            _ = _host.StartAsync();
+        }
+
+        private void IntroLayer_MouseDown(object sender, MouseButtonEventArgs e) { SkipOpening(); }
+
+        private void SkipOpening() { FinishOpening(); }
+
+        /// <summary>收掉动画层并开局。点击 / 按键跳过、动画自然结束、窗口关闭都走这里。</summary>
+        private void FinishOpening()
+        {
+            if (_introFinished) return;
+            _introFinished = true;
+            if (_introTimer != null) { _introTimer.Stop(); _introTimer = null; }
+            if (IntroLayer != null)
+            {
+                IntroLayer.Children.Clear();
+                IntroLayer.BeginAnimation(UIElement.OpacityProperty, null);
+                IntroLayer.Opacity = 1;
+                IntroLayer.Visibility = Visibility.Collapsed;
+            }
+            LaunchGame();
+        }
+
+        private void PlayOpeningAnimation()
+        {
+            if (_introFinished || _gameLaunched) return;
+            double w = ActualWidth > 100 ? ActualWidth : 1000;
+            double h = ActualHeight > 100 ? ActualHeight : 800;
+            // 牌墙跟着整桌缩放：最大化时不会缩成中间一小圈
+            double scale = Math.Max(0.75, Math.Min(_tableScale, 2.4));
+
+            IntroLayer.Children.Clear();
+            IntroLayer.BeginAnimation(UIElement.OpacityProperty, null);
+            IntroLayer.Opacity = 1;
+            IntroLayer.Visibility = Visibility.Visible;
+
+            // 1) 复刻真实牌桌：直接取主题的 TableBackground / TableFrameBrush，
+            //    保持同样的 Margin 14、圆角 26、金边 7，连「中心亮、四周暗」的径向光都一致。
+            //    上面再叠一层暖白柔光提亮曝光，避免退回原先近黑的暗遮罩。
+            Brush felt;
+            try { felt = ((Brush)TryFindResource("TableBackground"))?.Clone() ?? MakeIntroTableBrush(); }
+            catch { felt = MakeIntroTableBrush(); }
+            Brush gold;
+            try { gold = ((Brush)TryFindResource("TableFrameBrush"))?.Clone() ?? Brushes.Gold; }
+            catch { gold = Brushes.Gold; }
+
+            var stage = new Canvas { Width = w, Height = h, IsHitTestVisible = false, Opacity = 0 };
+            var table = new Border
+            {
+                Width = w - 28, Height = h - 28,
+                CornerRadius = new CornerRadius(26),
+                BorderBrush = gold, BorderThickness = new Thickness(7),
+                Background = felt, IsHitTestVisible = false
+            };
+            Canvas.SetLeft(table, 14);
+            Canvas.SetTop(table, 14);
+            stage.Children.Add(table);
+
+            var glow = new RadialGradientBrush
+            {
+                GradientOrigin = new Point(0.5, 0.4), Center = new Point(0.5, 0.4),
+                RadiusX = 0.82, RadiusY = 0.82
+            };
+            glow.GradientStops.Add(new GradientStop(Color.FromArgb(0x2E, 0xFF, 0xF7, 0xDC), 0.0));
+            glow.GradientStops.Add(new GradientStop(Color.FromArgb(0x1C, 0xFF, 0xF2, 0xC8), 0.62));
+            glow.GradientStops.Add(new GradientStop(Color.FromArgb(0x0A, 0xFF, 0xEC, 0xB4), 1.0));
+            var light = new Rectangle
+            {
+                Width = w - 28, Height = h - 28,
+                RadiusX = 19, RadiusY = 19, Fill = glow, IsHitTestVisible = false
+            };
+            Canvas.SetLeft(light, 14);
+            Canvas.SetTop(light, 14);
+            stage.Children.Add(light);
+            IntroLayer.Children.Add(stage);
+            Anim(stage, UIElement.OpacityProperty, 0, 1, 220, EasingMode.EaseOut);
+
+            // 2) 牌墙几何：以窗口中心画一圈方形牌墙。牌背贴图本身自带一圈浅色外框，
+            //    再留几何缝就会显得牌与牌离得很远，所以让相邻墩轻微压叠 (1.08)。
+            double side = Math.Min(Math.Min(w * 0.80, h * 0.82), 760 * scale);
+            if (side < 380 * scale) side = 380 * scale;
+            double cx = w / 2, cy = h / 2, half = side / 2;
+            double step = side / StacksPerSide;
+            double tileW = step * 1.08;    // 沿墙方向轻微重叠，收紧牌缝
+            double tileH = step * 1.42;    // 垂直墙方向的厚度（牌长）
+            var rng = new Random(unchecked((int)DateTime.Now.Ticks));
+            ImageSource back = TileArtwork.Get(TileKind.Man1, false);
+
+            var stacks = new List<IntroStack>();
+            int order = 0;
+            for (int sd = 0; sd < 4; sd++)
+            {
+                // 竖边各 16 墩，从距角 1 墩处起、到距角 1 墩处止，
+                // 与横边端墩轻微压叠成闭合拐角，四边不会断开留缺口。
+                int count = (sd == 1 || sd == 3) ? StacksPerSide - 1 : StacksPerSide;
+                for (int i = 0; i < count; i++)
+                {
+                    double x, y;
+                    if (sd == 0) { x = cx - half + (i + 0.5) * step; y = cy - half; }       // 北
+                    else if (sd == 2) { x = cx - half + (i + 0.5) * step; y = cy + half; }  // 南
+                    else if (sd == 1) { x = cx + half; y = cy - half + (i + 1.0) * step; }  // 东
+                    else { x = cx - half; y = cy - half + (i + 1.0) * step; }               // 西
+                    bool horizontal = (sd == 1 || sd == 3);
+                    double bw = horizontal ? tileH : tileW;
+                    double bh = horizontal ? tileW : tileH;
+
+                    var el = MakeIntroStack(bw, bh, back);
+                    // 起点都挤在牌桌中央（像刚洗完的一堆牌），按北→东→南→西的顺序逐墩归位
+                    double sx = cx + (rng.NextDouble() - 0.5) * 96 * scale;
+                    double sy = cy + (rng.NextDouble() - 0.5) * 72 * scale;
+                    Canvas.SetLeft(el, sx - bw / 2);
+                    Canvas.SetTop(el, sy - bh / 2);
+                    IntroLayer.Children.Add(el);
+
+                    int t = StackStartMs + order * StackStepMs;
+                    var pop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.28 };
+                    Anim(el, Canvas.LeftProperty, sx - bw / 2, x - bw / 2, StackFlyMs, EasingMode.EaseOut, t);
+                    Anim(el, Canvas.TopProperty, sy - bh / 2, y - bh / 2, StackFlyMs, EasingMode.EaseOut, t);
+                    Anim(el, UIElement.OpacityProperty, 0, 1, 130, EasingMode.EaseOut, t);
+                    // 变换类 Freezable 必须直接 BeginAnimation（见 Anim 的注释），Storyboard 会静默失效
+                    var sc = new ScaleTransform(0.5, 0.5);
+                    var rt = new RotateTransform((rng.NextDouble() - 0.5) * 34);
+                    el.RenderTransformOrigin = new Point(0.5, 0.5);
+                    el.RenderTransform = new TransformGroup { Children = { rt, sc } };
+                    Anim(sc, ScaleTransform.ScaleXProperty, 0.5, 1, StackFlyMs, EasingMode.EaseOut, t, pop);
+                    Anim(sc, ScaleTransform.ScaleYProperty, 0.5, 1, StackFlyMs, EasingMode.EaseOut, t, pop);
+                    Anim(rt, RotateTransform.AngleProperty, rt.Angle, 0, StackFlyMs, EasingMode.EaseOut, t);
+
+                    stacks.Add(new IntroStack { Element = el, Side = sd, Index = i });
+                    order++;
+                }
+            }
+            int stackEnd = StackStartMs + order * StackStepMs + StackFlyMs;
+            int diceAt = stackEnd + 30;
+            int moveAt = diceAt + 430;
+            int fadeAt = moveAt + 430;
+            int total = fadeAt + 320;
+
+            // 3) 中央阶段文字（码牌 → 掷骰 → 开门）：绿绒布桌面上用亮金字 + 深色投影
+            var label = new TextBlock
+            {
+                Text = "码 牌",
+                FontSize = 36 * scale,
+                FontWeight = FontWeights.Bold,
+                FontFamily = new FontFamily("Microsoft YaHei"),
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xF0, 0xB8)),
+                Width = side,
+                TextAlignment = TextAlignment.Center,
+                IsHitTestVisible = false,
+                Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 14, ShadowDepth = 2, Opacity = 0.8 }
+            };
+            Canvas.SetLeft(label, cx - side / 2);
+            Canvas.SetTop(label, cy - 34 * scale);
+            IntroLayer.Children.Add(label);
+            Anim(label, UIElement.OpacityProperty, 0, 1, 260, EasingMode.EaseOut);
+
+            // 4) 掷骰：两颗骰子落到文字下方，点数之和决定开门方位与墩号
+            int d1 = rng.Next(1, 7), d2 = rng.Next(1, 7);
+            double dieSize = 56 * scale;
+            for (int i = 0; i < 2; i++)
+            {
+                var die = MakeIntroDie(i == 0 ? d1 : d2, dieSize);
+                double dx = cx - dieSize * 1.15 + i * dieSize * 1.3;
+                double dy = cy + 48 * scale;
+                Canvas.SetLeft(die, dx);
+                Canvas.SetTop(die, dy - 180 * scale);
+                die.Opacity = 0;
+                die.Effect = new DropShadowEffect
+                {
+                    Color = Color.FromRgb(0x8A, 0x76, 0x52), BlurRadius = 10,
+                    ShadowDepth = 3, Opacity = 0.45
+                };
+                IntroLayer.Children.Add(die);
+                Anim(die, Canvas.TopProperty, dy - 180 * scale, dy, 420, EasingMode.EaseOut, diceAt,
+                     new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.45 });
+                Anim(die, UIElement.OpacityProperty, 0, 1, 150, EasingMode.EaseOut, diceAt);
+                var dr = new RotateTransform(i == 0 ? -22 : 18);
+                die.RenderTransformOrigin = new Point(0.5, 0.5);
+                die.RenderTransform = dr;
+                Anim(dr, RotateTransform.AngleProperty, dr.Angle, 0, 420, EasingMode.EaseOut, diceAt);
+            }
+
+            // 5) 开门搬牌：点数所指那两墩往墙外推一小截并点亮
+            int openSide = (d1 + d2) % 4;
+            int openIdx = (d1 + d2 + 1) % (StacksPerSide - 2);  // 保证 openIdx+1 在竖边 16 墩范围内
+            double push = 26 * scale, ox = 0, oy = 0;
+            if (openSide == 0) oy = -push;
+            else if (openSide == 2) oy = push;
+            else if (openSide == 1) ox = push;
+            else ox = -push;
+            var moved = new List<FrameworkElement>();
+            foreach (var s in stacks)
+            {
+                if (s.Side != openSide || (s.Index != openIdx && s.Index != openIdx + 1)) continue;
+                // 开门的两墩额外放大 1.32 倍，让「搬牌」这个动作在亮色舞台上足够醒目
+                var tg = (TransformGroup)s.Element.RenderTransform;
+                var tt = new TranslateTransform(0, 0);
+                var zoom = new ScaleTransform(1, 1);
+                tg.Children.Add(tt);
+                tg.Children.Add(zoom);
+                var pop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 };
+                Anim(tt, TranslateTransform.XProperty, 0, ox, 300, EasingMode.EaseOut, moveAt);
+                Anim(tt, TranslateTransform.YProperty, 0, oy, 300, EasingMode.EaseOut, moveAt);
+                Anim(zoom, ScaleTransform.ScaleXProperty, 1, 1.32, 300, EasingMode.EaseOut, moveAt, pop);
+                Anim(zoom, ScaleTransform.ScaleYProperty, 1, 1.32, 300, EasingMode.EaseOut, moveAt, pop);
+                // 金橙描边：亮底上比单纯的光晕更清楚
+                var hi = new Rectangle
+                {
+                    Width = s.Element.Width, Height = s.Element.Height,
+                    RadiusX = 3, RadiusY = 3,
+                    Stroke = new SolidColorBrush(Color.FromRgb(0xE0, 0x86, 0x0C)),
+                    StrokeThickness = 2.5,
+                    IsHitTestVisible = false, Opacity = 0
+                };
+                s.Element.Children.Add(hi);
+                Anim(hi, UIElement.OpacityProperty, 0, 1, 220, EasingMode.EaseOut, moveAt);
+                moved.Add(s.Element);
+            }
+
+            // 6) 揭幕：整层淡出后由定时器清空并启动引擎
+            if (!_introHold)
+                Anim(IntroLayer, UIElement.OpacityProperty, 1, 0, 300, EasingMode.EaseIn, fadeAt);
+            try { _host.Audio.OpeningStack(); } catch { }
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            bool diceShown = false, movedShown = false;
+            _introTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(35)
+            };
+            _introTimer.Tick += (s, e) =>
+            {
+                double t = sw.ElapsedMilliseconds;
+                if (!diceShown && t >= diceAt) { diceShown = true; label.Text = "掷骰 · 开门"; }
+                if (!movedShown && t >= moveAt)
+                {
+                    movedShown = true;
+                    label.Text = "开门 · 搬 " + (openIdx + 1) + " 墩";
+                    foreach (var el in moved)
+                        el.Effect = new DropShadowEffect
+                        {
+                            Color = Color.FromRgb(0xE8, 0x9A, 0x18), BlurRadius = 20,
+                            ShadowDepth = 0, Opacity = 0.95
+                        };
+                }
+                // --intro-hold：停在码完牌的画面上，方便截图核对；点一下 / 按任意键继续
+                if (_introHold) { if (t >= fadeAt + 200) _introTimer.Stop(); return; }
+                if (t >= total) FinishOpening();
+            };
+            _introTimer.Start();
+        }
+
+        /// <summary>主题资源缺失时，按 ElderTheme 里 TableBackground 的原色兜底。</summary>
+        private static Brush MakeIntroTableBrush()
+        {
+            var b = new RadialGradientBrush
+            {
+                GradientOrigin = new Point(0.5, 0.4), Center = new Point(0.5, 0.4),
+                RadiusX = 0.82, RadiusY = 0.82
+            };
+            b.GradientStops.Add(new GradientStop(Color.FromRgb(0x33, 0xB5, 0x67), 0.0));
+            b.GradientStops.Add(new GradientStop(Color.FromRgb(0x0E, 0x5C, 0x32), 0.62));
+            b.GradientStops.Add(new GradientStop(Color.FromRgb(0x07, 0x3A, 0x20), 1.0));
+            return b;
+        }
+
+        /// <summary>一墩牌 = 上下两张叠放；上层直接用牌背贴图，不再额外描边（贴图自带浅色牌框）。</summary>
+        private static Canvas MakeIntroStack(double w, double h, ImageSource back)
+        {
+            var c = new Canvas { Width = w, Height = h, IsHitTestVisible = false, Opacity = 0 };
+            // 下层牌错开 1.5px 做厚度感，用比桌面更深的绿，避免每墩外圈又多一道亮框
+            var under = new Rectangle
+            {
+                Width = w - 1.5, Height = h - 1.5, RadiusX = 3, RadiusY = 3,
+                Fill = new SolidColorBrush(Color.FromRgb(0x0B, 0x3D, 0x25))
+            };
+            Canvas.SetLeft(under, 1.5);
+            Canvas.SetTop(under, 1.5);
+            c.Children.Add(under);
+
+            if (back != null)
+            {
+                var face = new Image { Source = back, Width = w - 1.5, Height = h - 1.5, Stretch = Stretch.Fill };
+                Canvas.SetLeft(face, 0);
+                Canvas.SetTop(face, 0);
+                c.Children.Add(face);
+            }
+            else
+            {
+                // 贴图资源缺失时降级为纯色牌背，动画不至于变成一片空白
+                var face = new Rectangle
+                {
+                    Width = w - 1.5, Height = h - 1.5, RadiusX = 3, RadiusY = 3,
+                    Fill = new SolidColorBrush(Color.FromRgb(0x35, 0x86, 0x60)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(0xE4, 0xF2, 0xD8)), StrokeThickness = 1
+                };
+                c.Children.Add(face);
+            }
+            return c;
+        }
+
+        /// <summary>画一颗中式骰子（1、4 为红点，其余黑点）。</summary>
+        private static FrameworkElement MakeIntroDie(int value, double size)
+        {
+            var border = new Border
+            {
+                Width = size, Height = size,
+                CornerRadius = new CornerRadius(size * 0.18),
+                Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xF6, 0xE3)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x66, 0x44)),
+                BorderThickness = new Thickness(1.5),
+                IsHitTestVisible = false
+            };
+            var g = new Grid { Margin = new Thickness(size * 0.14) };
+            for (int i = 0; i < 3; i++)
+            {
+                g.RowDefinitions.Add(new RowDefinition());
+                g.ColumnDefinitions.Add(new ColumnDefinition());
+            }
+            int[] dots = DieDots(value);
+            var brush = new SolidColorBrush((value == 1 || value == 4)
+                ? Color.FromRgb(0xC0, 0x22, 0x22) : Color.FromRgb(0x22, 0x28, 0x22));
+            for (int i = 0; i < dots.Length; i += 2)
+            {
+                var dot = new Ellipse
+                {
+                    Width = size * 0.15, Height = size * 0.15, Fill = brush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetRow(dot, dots[i]);
+                Grid.SetColumn(dot, dots[i + 1]);
+                g.Children.Add(dot);
+            }
+            border.Child = g;
+            return border;
+        }
+
+        /// <summary>骰子点位，返回连续的 {行, 列}，行列均为 0..2。</summary>
+        private static int[] DieDots(int v)
+        {
+            switch (v)
+            {
+                case 1: return new[] { 1, 1 };
+                case 2: return new[] { 0, 0, 2, 2 };
+                case 3: return new[] { 0, 0, 1, 1, 2, 2 };
+                case 4: return new[] { 0, 0, 0, 2, 2, 0, 2, 2 };
+                case 5: return new[] { 0, 0, 0, 2, 1, 1, 2, 0, 2, 2 };
+                default: return new[] { 0, 0, 0, 2, 1, 0, 1, 2, 2, 0, 2, 2 };
+            }
         }
 
         // ============================================================
@@ -1636,15 +2079,6 @@ namespace Mahjong.App
         private static PropertyPath MakePath(object property)
         {
             return property is string name ? new PropertyPath(name) : new PropertyPath((DependencyProperty)property);
-        }
-
-        /// <summary>配音 / 音效 / 报席位开关：改动即时生效并写入本地配置。</summary>
-        private void AudioToggle_Click(object sender, RoutedEventArgs e)
-        {
-            if (_host == null || _host.Audio == null) return;
-            _host.Audio.VoiceEnabled = VoiceToggle.IsChecked == true;
-            _host.Audio.SoundEnabled = SfxToggle.IsChecked == true;
-            _host.Audio.AnnounceSeat = SeatToggle.IsChecked == true;
         }
     }
 }

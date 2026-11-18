@@ -23,7 +23,7 @@ exe = r"E:\cc_study\mj\src\Mahjong.App\bin\Debug\Mahjong.App.exe"
 proc = subprocess.Popen([exe] + extra)
 time.sleep(float(__import__("os").environ.get("SHOT_DELAY", "4")))
 
-hwnd = user32.FindWindowW(None, "欢乐麻将")
+hwnd = user32.FindWindowW(None, "家人麻将")
 if not hwnd:
     hwnd = proc._handle
 # 置顶 + 显示，规避前台锁
