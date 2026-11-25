@@ -16,6 +16,7 @@ namespace Mahjong.Core.Ai
         public static readonly AiProfile Easy = new AiProfile("简单");
         public static readonly AiProfile Normal = new AiProfile("普通");
         public static readonly AiProfile Hard = new AiProfile("较真");
+        public static readonly AiProfile Master = new AiProfile("大师");
     }
 
     /// <summary>AI 玩家（非作弊，只用公开信息）。</summary>
@@ -27,7 +28,7 @@ namespace Mahjong.Core.Ai
         private readonly HandEvaluator _eval;
         private readonly TileMemory _memory;
         private readonly int _claimPercent;
-        private readonly bool _preferMoreWaits;
+        private readonly int _skill;
 
         private sealed class Candidate
         {
@@ -40,9 +41,10 @@ namespace Mahjong.Core.Ai
         }
 
         /// <param name="claimPercent">碰/杠的接受概率（0-100），由难度档位给定。</param>
-        /// <param name="preferMoreWaits">较真档之上再优先选进张种类最多的牌（最高难度）。</param>
+        /// <param name="preferMoreWaits">旧调用方式：true 表示最高档（大师）。</param>
+        /// <param name="skill">强度档位 0=普通 1=较真 2=大师；-1 表示按 profile 推断，兼容旧调用。</param>
         public AiPlayer(int index, AiProfile profile, int seed, RuleConfig rules,
-            int claimPercent = 50, bool preferMoreWaits = false)
+            int claimPercent = 50, bool preferMoreWaits = false, int skill = -1)
         {
             _index = index;
             _profile = profile;
@@ -50,7 +52,9 @@ namespace Mahjong.Core.Ai
             _eval = new HandEvaluator(rules);
             _memory = new TileMemory();
             _claimPercent = claimPercent;
-            _preferMoreWaits = preferMoreWaits;
+            _skill = skill >= 0 ? skill
+                : (profile == AiProfile.Master || preferMoreWaits) ? 2
+                : profile == AiProfile.Hard ? 1 : 0;
         }
 
         /// <summary>
@@ -94,6 +98,17 @@ namespace Mahjong.Core.Ai
             if (candidates.Count == 0) return Task.FromResult(hand[0]);
             int bestShanten = candidates.Min(c => c.Shanten);
 
+            // 「看漏搭子」概率：普通 12%、较真 4%、大师 0%。
+            // 偶尔退一步选向听更差的打法，是三档强弱的主要来源；
+            // 幅度控制住，普通档仍以胡牌为主，不能退回以前 90% 流局的状态。
+            int slipPercent = _skill == 0 ? 12 : (_skill == 1 ? 4 : 0);
+            if (slipPercent > 0 && _rng.Next(100) < slipPercent)
+            {
+                var worse = candidates.Where(c => c.Shanten == bestShanten + 1).ToList();
+                if (worse.Count > 0)
+                    return Task.FromResult(worse[_rng.Next(worse.Count)].Tile);
+            }
+
             // 只对最低向听的候选算进张，避免 14×34 次无谓搜索。
             foreach (var c in candidates)
             {
@@ -113,15 +128,17 @@ namespace Mahjong.Core.Ai
             {
                 if (c.Shanten != bestShanten) continue;
 
-                // 三档差异：普通纯效率；较真在同效率时偏向安全牌（外面剩得少的）；
-                // 大师先比进张种类数，再比进张张数与安全。
+                // 三档梯度（都按向听数最小筛过，差别在同级候选怎么挑）：
+                // 普通：只看进张张数，再叠一点判断噪声（偶尔看漏），碰杠也保守；
+                // 较真：记牌后按进张张数取最优，同分偏向外面剩得少的安全牌；
+                // 大师：进张种类优先（听面广更容易先摸到），再比张数和安全，碰杠最积极。
                 long score;
-                if (_preferMoreWaits)
-                    score = (long)c.UsefulKinds * 1000 + c.UsefulTiles * 4 + (4 - c.Remaining);
-                else if (_profile.Name == "较真")
-                    score = (long)c.UsefulTiles * 4 + (4 - c.Remaining);
+                if (_skill >= 2)
+                    score = (long)c.UsefulKinds * 15 + c.UsefulTiles * 10 + (4 - c.Remaining);
+                else if (_skill == 1)
+                    score = (long)c.UsefulTiles * 10 + (4 - c.Remaining) * 2;
                 else
-                    score = (long)c.UsefulTiles * 10;
+                    score = (long)c.UsefulTiles * 10 + _rng.Next(0, 120);
 
                 if (score > bestScore)
                 {
@@ -139,12 +156,48 @@ namespace Mahjong.Core.Ai
             var win = context.ClaimOptions?.FirstOrDefault(o => o.Type == ClaimType.Win);
             if (win != null) return Task.FromResult(win);
 
-            // 碰/杠按难度给定的概率接受（普通档保持旧的 50% 掷法，随机序列不变）
             var kong = context.ClaimOptions?.FirstOrDefault(o => o.Type == ClaimType.Kong);
-            if (kong != null && RollClaim()) return Task.FromResult(kong);
             var pong = context.ClaimOptions?.FirstOrDefault(o => o.Type == ClaimType.Pong);
+
+            // 大师档：杠几乎总有利，直接接；碰会跳过一次摸牌，只有真能降低向听才碰。
+            // 旧版大师无脑高概率碰，反而把成牌拖慢了——这里改成会算账。
+            if (_skill >= 2)
+            {
+                if (kong != null) return Task.FromResult(kong);
+                if (pong != null && PongImprovesShanten(context, pong)) return Task.FromResult(pong);
+                return Task.FromResult<ClaimOption>(null);
+            }
+
+            // 普通/较真按难度给定的概率接受。
+            if (kong != null && RollClaim()) return Task.FromResult(kong);
             if (pong != null && RollClaim()) return Task.FromResult(pong);
             return Task.FromResult<ClaimOption>(null);
+        }
+
+        /// <summary>碰之后不摸牌直接出一张：枚举打哪张最好，只有向听真降了才值得碰。</summary>
+        private bool PongImprovesShanten(DecisionContext context, ClaimOption option)
+        {
+            var hand = context.Hand;
+            if (hand == null) return false;
+            int fixedMelds = context.Melds != null ? context.Melds.Count : 0;
+            var counts = new int[34];
+            foreach (var t in hand) counts[(int)t.Kind]++;
+            int before = _eval.GetShanten(counts, fixedMelds);
+
+            int k = (int)option.Kind;
+            if (counts[k] < 2) return false;
+            counts[k] -= 2;   // 自己手里的两张拿去凑碰，第三张是别人打出的
+
+            int after = int.MaxValue;
+            for (int j = 0; j < 34; j++)
+            {
+                if (counts[j] == 0) continue;
+                counts[j]--;
+                int s = _eval.GetShanten(counts, fixedMelds + 1);
+                counts[j]++;
+                if (s < after) after = s;
+            }
+            return after < before;
         }
 
         private bool RollClaim()

@@ -66,7 +66,7 @@ namespace Mahjong.App
         // ===== 开局码牌动画 =====
         // 引擎要等动画播完（或点一下跳过）才启动：它跑起来约 1 秒就会出第一张牌，
         // 并行的话牌墙还没码完，牌河里已经冒出一张牌了。
-        private const int StacksPerSide = 17;   // 真实麻将每人面前码 17 墩；竖边 16 墩与横边端墩压叠成角，实际绘制 66 墩
+        private const int StacksPerSide = 17;   // 真实麻将每人面前码 17 墩；四边各 17 墩共 68 墩，靠斜排避开四角
         private const int StackStartMs = 120;
         private const int StackStepMs = 11;
         private const int StackFlyMs = 240;
@@ -1597,6 +1597,12 @@ namespace Mahjong.App
             Close();
         }
 
+        /// <summary>右上角「不玩了」：退出整个应用。关窗时 Closed 事件会停掉本局音频后台线程。</summary>
+        private void QuitButton_Click(object sender, RoutedEventArgs e)
+        {
+            Application.Current.Shutdown();
+        }
+
         /// <summary>
         /// 「设置」入口。声音由设置窗口直接写到 AudioService（即时生效）；
         /// 初始金币与难度在保存后同步到会话规则/难度状态，必要时立刻开新的一场。
@@ -1727,14 +1733,20 @@ namespace Mahjong.App
             IntroLayer.Children.Add(stage);
             Anim(stage, UIElement.OpacityProperty, 0, 1, 220, EasingMode.EaseOut);
 
-            // 2) 牌墙几何：以窗口中心画一圈方形牌墙。牌背贴图本身自带一圈浅色外框，
-            //    再留几何缝就会显得牌与牌离得很远，所以让相邻墩轻微压叠 (1.08)。
-            double side = Math.Min(Math.Min(w * 0.80, h * 0.82), 760 * scale);
-            if (side < 380 * scale) side = 380 * scale;
+            // 2) 牌墙几何：四排各斜出一个角度，摆成风车状而不是硬凑直角方框。
+            //    直角相接时横排与竖排的端墩必然在四角互相压叠；斜开后四角自然张开，
+            //    四边也就能各摆满 17 墩，不必为了避让而少画牌。
+            //    牌背贴图自带一圈浅色外框，故相邻墩仍轻微压叠 (1.08) 收紧牌缝。
+            //    side 略收一点，给倾斜后端墩外移留出边距，避免贴到窗口边缘。
+            double side = Math.Min(Math.Min(w * 0.74, h * 0.74), 700 * scale);
+            if (side < 340 * scale) side = 340 * scale;
             double cx = w / 2, cy = h / 2, half = side / 2;
             double step = side / StacksPerSide;
             double tileW = step * 1.08;    // 沿墙方向轻微重叠，收紧牌缝
             double tileH = step * 1.42;    // 垂直墙方向的厚度（牌长）
+            const double TiltDeg = 7.0;    // 每排斜出的角度
+            double ta = TiltDeg * Math.PI / 180.0;
+            double ct = Math.Cos(ta), st = Math.Sin(ta);
             var rng = new Random(unchecked((int)DateTime.Now.Ticks));
             ImageSource back = TileArtwork.Get(TileKind.Man1, false);
 
@@ -1742,16 +1754,20 @@ namespace Mahjong.App
             int order = 0;
             for (int sd = 0; sd < 4; sd++)
             {
-                // 竖边各 16 墩，从距角 1 墩处起、到距角 1 墩处止，
-                // 与横边端墩轻微压叠成闭合拐角，四边不会断开留缺口。
-                int count = (sd == 1 || sd == 3) ? StacksPerSide - 1 : StacksPerSide;
-                for (int i = 0; i < count; i++)
+                // 四边等长各 17 墩，每排绕自身中点同向倾斜 TiltDeg：
+                // 四边中点不动，端点彼此错开，角上不再叠牌。
+                double mx = (sd == 1) ? cx + half : (sd == 3 ? cx - half : cx);
+                double my = (sd == 0) ? cy - half : (sd == 2 ? cy + half : cy);
+                for (int i = 0; i < StacksPerSide; i++)
                 {
                     double x, y;
                     if (sd == 0) { x = cx - half + (i + 0.5) * step; y = cy - half; }       // 北
                     else if (sd == 2) { x = cx - half + (i + 0.5) * step; y = cy + half; }  // 南
-                    else if (sd == 1) { x = cx + half; y = cy - half + (i + 1.0) * step; }  // 东
-                    else { x = cx - half; y = cy - half + (i + 1.0) * step; }               // 西
+                    else if (sd == 1) { x = cx + half; y = cy - half + (i + 0.5) * step; }  // 东
+                    else { x = cx - half; y = cy - half + (i + 0.5) * step; }               // 西
+                    double dx = x - mx, dy = y - my;
+                    x = mx + dx * ct - dy * st;
+                    y = my + dx * st + dy * ct;
                     bool horizontal = (sd == 1 || sd == 3);
                     double bw = horizontal ? tileH : tileW;
                     double bh = horizontal ? tileW : tileH;
@@ -1776,7 +1792,8 @@ namespace Mahjong.App
                     el.RenderTransform = new TransformGroup { Children = { rt, sc } };
                     Anim(sc, ScaleTransform.ScaleXProperty, 0.5, 1, StackFlyMs, EasingMode.EaseOut, t, pop);
                     Anim(sc, ScaleTransform.ScaleYProperty, 0.5, 1, StackFlyMs, EasingMode.EaseOut, t, pop);
-                    Anim(rt, RotateTransform.AngleProperty, rt.Angle, 0, StackFlyMs, EasingMode.EaseOut, t);
+                    // 落位后每墩也带着同样的倾角，整排才是一条齐整的斜线
+                    Anim(rt, RotateTransform.AngleProperty, rt.Angle, TiltDeg, StackFlyMs, EasingMode.EaseOut, t);
 
                     stacks.Add(new IntroStack { Element = el, Side = sd, Index = i });
                     order++;
@@ -1834,12 +1851,15 @@ namespace Mahjong.App
 
             // 5) 开门搬牌：点数所指那两墩往墙外推一小截并点亮
             int openSide = (d1 + d2) % 4;
-            int openIdx = (d1 + d2 + 1) % (StacksPerSide - 2);  // 保证 openIdx+1 在竖边 16 墩范围内
-            double push = 26 * scale, ox = 0, oy = 0;
-            if (openSide == 0) oy = -push;
-            else if (openSide == 2) oy = push;
-            else if (openSide == 1) ox = push;
-            else ox = -push;
+            int openIdx = (d1 + d2 + 1) % (StacksPerSide - 2);  // 保证 openIdx+1 不越界
+            double push = 26 * scale, nx = 0, ny = 0;
+            if (openSide == 0) ny = -push;
+            else if (openSide == 2) ny = push;
+            else if (openSide == 1) nx = push;
+            else nx = -push;
+            // 推出方向跟着整排一起斜，保持垂直于斜边
+            double ox = nx * ct - ny * st;
+            double oy = nx * st + ny * ct;
             var moved = new List<FrameworkElement>();
             foreach (var s in stacks)
             {

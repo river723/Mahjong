@@ -10,11 +10,12 @@ namespace Mahjong.Core.Ai
     {
         public const int MaxLevel = 2;
 
-        // 触发阈值集中在这里，改难度曲线只动这四行
-        public const int StreakForLevel1 = 2;
-        public const int StreakForLevel2 = 4;
-        public const int RoundsForLevel1 = 4;
-        public const int RoundsForLevel2 = 8;
+        // 触发阈值集中在这里，改难度曲线只动这四行。
+        // 数值比早期版本放大：让玩家先在普通/较真档多打几局，别刚上手就被大师压着打。
+        public const int StreakForLevel1 = 3;
+        public const int StreakForLevel2 = 6;
+        public const int RoundsForLevel1 = 6;
+        public const int RoundsForLevel2 = 12;
 
         private static readonly string[] Names = { "普通", "较真", "大师" };
 
@@ -37,15 +38,20 @@ namespace Mahjong.Core.Ai
             return Names[level];
         }
 
-        // Lv0 = 现状（普通）；Lv1 起用较真档；Lv2 在较真之上再优先选进张最多的牌。
-        public static AiProfile ProfileFor(int level) { return level >= 1 ? AiProfile.Hard : AiProfile.Normal; }
+        // Lv0 = 普通；Lv1 = 较真；Lv2 = 大师。三档用各自的 Profile，出牌打分逐档变强。
+        public static AiProfile ProfileFor(int level)
+        {
+            if (level <= 0) return AiProfile.Normal;
+            if (level == 1) return AiProfile.Hard;
+            return AiProfile.Master;
+        }
 
-        /// <summary>碰/杠的接受概率（%）。Lv0 保持 50 与旧行为一致。</summary>
+        /// <summary>碰/杠的接受概率（%）。档位越高越愿意副露，成牌越快。</summary>
         public static int ClaimPercentFor(int level)
         {
-            if (level <= 0) return 50;
-            if (level == 1) return 65;
-            return 85;
+            if (level <= 0) return 40;
+            if (level == 1) return 70;
+            return 95;
         }
 
         /// <summary>Lv2 额外强化：在能听牌的候选里优先选进张最多的。</summary>

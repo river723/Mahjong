@@ -78,7 +78,7 @@ namespace Mahjong.App.Services
             if (demo)
             {
                 for (int i = 0; i < 4; i++)
-                    agents[i] = new AiPlayer(i, profile, seed + i, _rules, claimPercent, preferMoreWaits);
+                    agents[i] = new AiPlayer(i, profile, seed + i, _rules, claimPercent, preferMoreWaits, difficultyLevel);
             }
             else
             {
@@ -86,7 +86,7 @@ namespace Mahjong.App.Services
                 agents[0] = _human;
                 for (int i = 0; i < 3; i++)
                 {
-                    _ais[i] = new AiPlayer(i + 1, profile, seed + i, _rules, claimPercent, preferMoreWaits);
+                    _ais[i] = new AiPlayer(i + 1, profile, seed + i, _rules, claimPercent, preferMoreWaits, difficultyLevel);
                     agents[i + 1] = _ais[i];
                 }
             }
@@ -94,11 +94,14 @@ namespace Mahjong.App.Services
             // 2. 创建引擎
             _engine = new GameEngine(_rules, agents, dealerIndex: 0, wallSeed: seed);
             // UI 场景：一轮结算完成后、下一家摸牌前留停顿给播报，不影响碰/杠/胡的即时征询。
-            // AI 打牌留 1300ms：带席位前缀的一条播报（「北家 五万」）约 1.16s，
-            // 停顿短于播报长度会让配音积压、靠省略前缀才勉强跟上，最终周期性丢整句。
-            // 真人自己打出的牌只停 800ms，不必让自己干等自己。
-            _engine.ThinkDelayMs = 1300;
+            // 座位：0=南(真人) / 1=北 / 2=东 / 3=西。
+            // 东、北两家的停顿由设置里的「出牌间隔」决定（settings.ini，默认 3s，可 1.3~30s）；
+            // 西家固定 1300ms（带席位前缀的一条播报约 1.16s，1.3s 刚好容得下，不随设置变动）；
+            // 真人自己打出的牌固定停 800ms，不受该设置影响。
+            _engine.ThinkDelayMs = GameSettings.Current.AiThinkMs;   // 兜底：东/北未单独指定时用
             _engine.HumanThinkDelayMs = 800;
+            _engine.ThinkDelayForSeat = seat =>
+                seat == 3 ? 1300 : GameSettings.Current.AiThinkMs;   // 西家固定，其余 AI 走设置
 
             // 3. 连接 UI → 人类 Agent 的出牌通道（点击手牌出牌）
             viewModel.Players[0].OnTileDiscardRequested += t => HumanChooseDiscard(t);

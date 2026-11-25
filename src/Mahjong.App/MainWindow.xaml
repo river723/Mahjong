@@ -106,6 +106,41 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </DataTemplate>
+
+        <!-- 顶部左右角的小按钮（设置 / 不玩了）共用样式：深绿胶囊 + 金边 + 按压反馈 -->
+        <Style x:Key="TopCornerButton" TargetType="Button">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontFamily" Value="Microsoft YaHei" />
+            <Setter Property="Foreground" Value="#FFFFE9A8" />
+            <Setter Property="Background" Value="#B300140A" />
+            <Setter Property="BorderBrush" Value="#66FFE9A8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" CornerRadius="10"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="#FFFFE9A8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Grid.Resources>
 
     <!-- ==================== 牌桌 ==================== -->
@@ -651,34 +686,16 @@
             <Rectangle x:Name="WinFlashRect" Fill="#FFFFF6DC" Opacity="0" IsHitTestVisible="False" />
         </Grid>
 
-        <!-- ======== 设置入口：声音、初始金币、开始难度统一在弹窗里调 ======== -->
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Margin="0,20,26,0" Panel.ZIndex="60" IsHitTestVisible="True">
-            <Button x:Name="SettingsButton" Content="设置" Click="SettingsButton_Click"
-                    VerticalAlignment="Center" Padding="14,7"
-                    FontSize="15" FontWeight="Bold" FontFamily="Microsoft YaHei"
-                    Foreground="#FFFFE9A8" Background="#B300140A"
-                    BorderBrush="#66FFE9A8" BorderThickness="1" Cursor="Hand">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bd" CornerRadius="10"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="BorderBrush" Value="#FFFFE9A8" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Opacity" Value="0.75" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
-            </Button>
-        </StackPanel>
+        <!-- ======== 顶部左右角：左上「设置」入口，右上「不玩了」退出 ======== -->
+        <!-- 设置：声音、初始金币、AI 出牌间隔、开始难度统一在弹窗里调 -->
+        <Button x:Name="SettingsButton" Content="设置" Click="SettingsButton_Click"
+                Style="{StaticResource TopCornerButton}"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
+                Margin="26,20,0,0" Panel.ZIndex="60" IsHitTestVisible="True" />
+        <!-- 不玩了：直接退出整个应用（关窗时 Closed 事件会停掉音频后台线程） -->
+        <Button x:Name="QuitButton" Content="不玩了" Click="QuitButton_Click"
+                Style="{StaticResource TopCornerButton}"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,20,26,0" Panel.ZIndex="60" IsHitTestVisible="True" />
     </Grid>
 </Window>

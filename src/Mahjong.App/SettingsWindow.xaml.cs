@@ -10,14 +10,16 @@ using Mahjong.Core.Tiles;
 namespace Mahjong.App
 {
     /// <summary>
-    /// 「设置」窗口：声音 / 每人初始金币 / 开始难度。
+    /// 「设置」窗口：声音 / 每人初始金币 / AI 出牌间隔 / 开始难度。
     ///
     /// 生效规则：
     /// 1) 声音四个开关直接写 AudioService 的属性，setter 即时生效并落盘（audio.ini）；
     ///    因为「试听」会临时应用，打开时留一份快照，点取消或右上角 X 时还原。
     /// 2) 初始金币写 GameSettings.Current → App.Session.ApplySettings() 同步到 RuleConfig，
     ///    进行中的账本余额不动，下一次 CoinLedger.Reset()（开新的一场）才用新值。
-    /// 3) 难度只保存配置；是否立刻重置难度进度由 MainWindow 决定（命令行固定档位优先）。
+    /// 3) 东家/北家出牌间隔写 GameSettings.Current（settings.ini），下一局新建 GameHost 时读取；
+    ///    点「保存并开新的一场」会立即重建引擎，当场生效。西家固定 1300ms、真人固定 800ms 均不受影响。
+    /// 4) 难度只保存配置；是否立刻重置难度进度由 MainWindow 决定（命令行固定档位优先）。
     /// </summary>
     public partial class SettingsWindow : Window
     {
@@ -60,6 +62,7 @@ namespace Mahjong.App
             Diff1.IsChecked = s.StartDifficulty == 1;
             Diff2.IsChecked = s.StartDifficulty >= 2;
             AutoLevelBox.IsChecked = s.AutoLevelUp;
+            AiThinkBox.Text = GameSettings.FormatAiThinkSeconds(s.AiThinkMs);
             CoinsRange.Text = string.Format("枚（{0} ~ {1}）",
                 GameSettings.MinInitialCoins, GameSettings.MaxInitialCoins);
             UpdateDiffHint();
@@ -85,13 +88,13 @@ namespace Mahjong.App
             switch (SelectedDifficulty())
             {
                 case 2:
-                    DiffHint.Text = "大师：AI 更积极碰杠，并在能听牌的候选里优先选进张最多的牌。";
+                    DiffHint.Text = "大师：AI 不漏搭子，只在碰牌真能改善手牌时才碰，碰杠最精。";
                     break;
                 case 1:
-                    DiffHint.Text = "较真：AI 出牌更较真、更愿意碰杠，适合有点基础的玩家。";
+                    DiffHint.Text = "较真：AI 很少看漏搭子，出牌兼顾进张与安全，稳扎稳打。";
                     break;
                 default:
-                    DiffHint.Text = "普通：AI 常规出牌，适合熟悉规则、轻松玩两局。";
+                    DiffHint.Text = "普通：AI 偶尔看漏搭子，做牌偏慢，适合轻松玩两局。";
                     break;
             }
         }
@@ -102,6 +105,22 @@ namespace Mahjong.App
         {
             foreach (char c in e.Text)
             {
+                if (c < '0' || c > '9') { e.Handled = true; return; }
+            }
+        }
+
+        /// <summary>出牌间隔允许小数（如 1.3）：只放行数字与一个小数点。</summary>
+        private void DecimalDigitsOnly(object sender, TextCompositionEventArgs e)
+        {
+            var box = sender as TextBox;
+            foreach (char c in e.Text)
+            {
+                if (c == '.')
+                {
+                    // 已经有小数点就不再放行第二个
+                    if (box != null && box.Text.IndexOf('.') >= 0) e.Handled = true;
+                    continue;
+                }
                 if (c < '0' || c > '9') { e.Handled = true; return; }
             }
         }
@@ -120,6 +139,7 @@ namespace Mahjong.App
             SeatBox.IsChecked = false;
             OwnBox.IsChecked = true;
             CoinsBox.Text = GameSettings.DefaultInitialCoins.ToString(CultureInfo.InvariantCulture);
+            AiThinkBox.Text = GameSettings.FormatAiThinkSeconds(GameSettings.DefaultAiThinkMs);
             Diff0.IsChecked = true;
             AutoLevelBox.IsChecked = true;
             UpdateDiffHint();
@@ -170,6 +190,16 @@ namespace Mahjong.App
                 return;
             }
 
+            int? aiThinkMs = GameSettings.TryParseAiThinkMs(AiThinkBox.Text);
+            if (!aiThinkMs.HasValue)
+            {
+                MessageBox.Show("AI 出牌间隔请填 1.3 ~ 30 之间的秒数（可含小数）。", "设置未保存",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                AiThinkBox.Focus();
+                AiThinkBox.SelectAll();
+                return;
+            }
+
             ApplyAudioFromUi();
 
             var s = GameSettings.Current;
@@ -180,6 +210,7 @@ namespace Mahjong.App
             s.InitialCoins = coins.Value;
             s.StartDifficulty = difficulty;
             s.AutoLevelUp = autoLevel;
+            s.AiThinkMs = aiThinkMs.Value;
             s.Save();
             // 规则对象与账本是同一个引用：下一场 Reset 时就会按新金币发牌。
             App.Session.ApplySettings();

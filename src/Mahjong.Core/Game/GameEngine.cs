@@ -67,6 +67,13 @@ namespace Mahjong.Core.Game
         /// </summary>
         public int HumanThinkDelayMs { get; set; } = -1;
 
+        /// <summary>
+        /// 按座位索引返回 AI 出牌后的停顿毫秒数（0=南家真人 / 1=北 / 2=东 / 3=西）。
+        /// 未设置时三家 AI 统一用 <see cref="ThinkDelayMs"/>。UI 场景用它给不同座位
+        /// 配不同节奏（如西家固定 1.3s，东/北跟随设置）；真人不走这里，用 HumanThinkDelayMs。
+        /// </summary>
+        public Func<int, int> ThinkDelayForSeat { get; set; }
+
         /// <summary>运行完整一局直到胡牌或流局（异步，无 UI 线程依赖）。</summary>
         public async Task<GameResult> RunAsync()
         {
@@ -184,9 +191,13 @@ namespace Mahjong.Core.Game
         /// </summary>
         private Task PaceAsync(int discarder)
         {
-            int delay = (_agents[discarder] is IHumanControlled)
-                ? (HumanThinkDelayMs >= 0 ? HumanThinkDelayMs : ThinkDelayMs)
-                : ThinkDelayMs;
+            int delay;
+            if (_agents[discarder] is IHumanControlled)
+                delay = (HumanThinkDelayMs >= 0 ? HumanThinkDelayMs : ThinkDelayMs);
+            else if (ThinkDelayForSeat != null)
+                delay = ThinkDelayForSeat(discarder);
+            else
+                delay = ThinkDelayMs;
             return delay > 0 ? Task.Delay(delay) : Task.CompletedTask;
         }
 

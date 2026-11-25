@@ -1,7 +1,7 @@
 <Window x:Class="Mahjong.App.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="设置" Icon="/Assets/FamilyMahjong.ico" Width="780" Height="660" MinWidth="680" MinHeight="560"
+        Title="设置" Icon="/Assets/FamilyMahjong.ico" Width="780" Height="760" MinWidth="680" MinHeight="620"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="#072E1A" FontFamily="Microsoft YaHei">
 
@@ -103,7 +103,7 @@
                 <StackPanel Grid.Row="0" Margin="0,0,0,8">
                     <TextBlock Text="游戏设置" FontSize="30" FontWeight="Bold"
                                Foreground="{StaticResource TitleGoldBrush}" />
-                    <TextBlock Text="声音  ·  初始金币  ·  起始难度" FontSize="15"
+                    <TextBlock Text="声音  ·  初始金币  ·  出牌间隔  ·  起始难度" FontSize="15"
                                Foreground="#BFE6CD" Margin="2,2,0,0" />
                 </StackPanel>
 
@@ -172,6 +172,28 @@
                                 </StackPanel>
                             </Border>
 
+                            <Border Style="{StaticResource SectionCard}">
+                                <StackPanel>
+                                    <TextBlock Text="三、东家 / 北家出牌间隔" Style="{StaticResource SectionTitle}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="每家" FontSize="19" Foreground="#FFFFF4D6"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox x:Name="AiThinkBox" Width="90" Height="42" Margin="10,0,10,0"
+                                                 FontSize="24" FontWeight="Bold" TextAlignment="Center"
+                                                 VerticalContentAlignment="Center" MaxLength="6"
+                                                 Foreground="#1C3F2B" Background="#FFFFF6DC"
+                                                 BorderBrush="#FFD9A93B" BorderThickness="2"
+                                                 PreviewTextInput="DecimalDigitsOnly" />
+                                        <TextBlock x:Name="AiThinkRange" Text="秒（1.3 ~ 30）" FontSize="18"
+                                                   Foreground="#FFFFF4D6" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Text="东家、北家出牌后的停顿时长，可填小数（如 1.3）。数值越大节奏越慢。"
+                                               Style="{StaticResource SectionNote}" />
+                                    <TextBlock Text="西家固定 1.3 秒，自己出牌固定 0.8 秒，均不受此设置影响。保存后下一局生效；点「保存并开新的一场」立即启用。"
+                                               Style="{StaticResource SectionNote}" />
+                                </StackPanel>
+                            </Border>
+
                         </StackPanel>
 
                         <!-- ======== 右列：开始难度 + 生效说明 ======== -->
@@ -179,7 +201,7 @@
 
                             <Border Style="{StaticResource SectionCard}">
                                 <StackPanel>
-                                    <TextBlock Text="三、开始难度" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Text="四、开始难度" Style="{StaticResource SectionTitle}" />
                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                         <RadioButton x:Name="Diff0" Content="普通" GroupName="StartDifficulty"
                                                      Style="{StaticResource SettingsRadio}" Checked="Difficulty_Changed" />
@@ -190,7 +212,7 @@
                                     </StackPanel>
                                     <TextBlock x:Name="DiffHint" Text="" FontSize="16" Foreground="#FFFFD980"
                                                TextWrapping="Wrap" Margin="2,10,0,6" />
-                                    <CheckBox x:Name="AutoLevelBox" Content="自动升档（连胜/局数够了会变强）"
+                                    <CheckBox x:Name="AutoLevelBox" Content="自动升档（连胜3/6局·累计6/12局）"
                                               Style="{StaticResource SettingsCheckBox}" />
                                     <TextBlock x:Name="DifficultyLockHint" Visibility="Collapsed"
                                                Text="当前难度由启动参数固定，此处改动只会在下次正常启动时生效。"
